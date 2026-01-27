@@ -1,4 +1,5 @@
 import { CollectedGitHubData } from '../utils/cache';
+import { getEvidenceConfig } from '../utils/config';
 
 export interface Evidence {
   type: 'repo' | 'commit' | 'pr' | 'starred' | 'topic';
@@ -7,27 +8,40 @@ export interface Evidence {
   detail?: string;
 }
 
+// [NOTE]: Get evidence limits from config (config/constants.json)
+function getEvidenceLimits() {
+  const config = getEvidenceConfig();
+  return {
+    maxPerSkill: config.maxPerSkill,
+    repoLimit: config.repoLimit,
+    prLimit: config.prLimit,
+    commitLimit: config.commitLimit,
+    starLimit: config.starLimit,
+  };
+}
+
 export function collectEvidence(
-  skillName: string,
   terms: string[],
   data: CollectedGitHubData,
-  maxEvidence: number = 5
+  maxEvidence?: number
 ): Evidence[] {
+  const limits = getEvidenceLimits();
+  const max = maxEvidence ?? limits.maxPerSkill;
   const evidence: Evidence[] = [];
 
-  const repoEvidence = collectRepoEvidence(terms, data, Math.ceil(maxEvidence / 2));
+  const repoEvidence = collectRepoEvidence(terms, data, limits.repoLimit);
   evidence.push(...repoEvidence);
 
-  const prEvidence = collectPREvidence(terms, data, Math.floor(maxEvidence / 3));
+  const prEvidence = collectPREvidence(terms, data, limits.prLimit);
   evidence.push(...prEvidence);
 
-  const commitEvidence = collectCommitEvidence(terms, data, 2);
+  const commitEvidence = collectCommitEvidence(terms, data, limits.commitLimit);
   evidence.push(...commitEvidence);
 
-  const starEvidence = collectStarEvidence(terms, data, 1);
+  const starEvidence = collectStarEvidence(terms, data, limits.starLimit);
   evidence.push(...starEvidence);
 
-  return evidence.slice(0, maxEvidence);
+  return evidence.slice(0, max);
 }
 
 function collectRepoEvidence(

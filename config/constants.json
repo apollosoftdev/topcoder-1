@@ -101,5 +101,13 @@
     "recencyOngoing": 30,
     "scoreSolid": 50,
     "scoreWorking": 30
+  },
+
+  "evidence": {
+    "maxPerSkill": 5,
+    "repoLimit": 3,
+    "prLimit": 2,
+    "commitLimit": 2,
+    "starLimit": 1
   }
 }

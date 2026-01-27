@@ -1,7 +1,24 @@
-import { CollectedGitHubData, TopcoderSkill } from '../utils/cache';
+import { CollectedGitHubData, TopcoderSkill, RepoData } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
 import { loadSkillsConfig, getFileExtensions, getExplanationThresholds } from '../utils/config';
+
+// [NOTE]: Helper to extract searchable terms from a repo
+function getRepoTerms(repo: RepoData): string[] {
+  const terms = [
+    ...Object.keys(repo.languages).map(l => l.toLowerCase()),
+    ...repo.topics.map(t => t.toLowerCase()),
+  ];
+  if (repo.language) {
+    terms.push(repo.language.toLowerCase());
+  }
+  return terms;
+}
+
+// [NOTE]: Check if any skill term matches any repo term
+function termsMatchRepo(skillTerms: string[], repoTerms: string[]): boolean {
+  return skillTerms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)));
+}
 
 
 // [!IMPORTANT]: Final output structure for each skill recommendation
@@ -79,7 +96,6 @@ export class ScoringEngine {
 
     // [NOTE]: Calculate each component score (0-100)
     const languageScore = this.calculateLanguageScore(
-      skillName,
       allTerms,
       data,
       maxRawScore,
@@ -115,7 +131,7 @@ export class ScoringEngine {
       this.config.maxScore
     );
 
-    const evidence = collectEvidence(match.skill.name, allTerms, data);
+    const evidence = collectEvidence(allTerms, data);
     const explanation = this.generateExplanation(match.skill.name, components, score);
 
     return {
@@ -151,7 +167,6 @@ export class ScoringEngine {
 
   // [NOTE]: Score based on language bytes in repos (improved)
   private calculateLanguageScore(
-    _skillName: string,
     terms: string[],
     data: CollectedGitHubData,
     maxRawScore: number,
@@ -170,14 +185,10 @@ export class ScoringEngine {
     let skillLanguageBytes = 0;
 
     for (const repo of data.repos) {
-      const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
-      const repoTopics = repo.topics.map(t => t.toLowerCase());
-      const primaryLang = repo.language?.toLowerCase();
-      const allRepoTerms = [...repoLanguages, ...repoTopics];
-      if (primaryLang) allRepoTerms.push(primaryLang);
+      const repoTerms = getRepoTerms(repo);
 
       // [NOTE]: Check if repo uses this skill
-      if (terms.some(t => allRepoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
+      if (termsMatchRepo(terms, repoTerms)) {
         matchingRepos++;
 
         // [NOTE]: Sum language bytes
@@ -275,13 +286,9 @@ export class ScoringEngine {
     let ownedRepos = 0;
 
     for (const repo of data.repos) {
-      const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
-      const repoTopics = repo.topics.map(t => t.toLowerCase());
-      const primaryLang = repo.language?.toLowerCase();
-      const repoTerms = [...repoLanguages, ...repoTopics];
-      if (primaryLang) repoTerms.push(primaryLang);
+      const repoTerms = getRepoTerms(repo);
 
-      if (terms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
+      if (termsMatchRepo(terms, repoTerms)) {
         relevantRepos++;
         totalStars += repo.stars;
         totalForks += repo.forks;
@@ -313,13 +320,9 @@ export class ScoringEngine {
     let matchingRepos = 0;
 
     for (const repo of data.repos) {
-      const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
-      const repoTopics = repo.topics.map(t => t.toLowerCase());
-      const primaryLang = repo.language?.toLowerCase();
-      const repoTerms = [...repoLanguages, ...repoTopics];
-      if (primaryLang) repoTerms.push(primaryLang);
+      const repoTerms = getRepoTerms(repo);
 
-      if (terms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
+      if (termsMatchRepo(terms, repoTerms)) {
         matchingRepos++;
         const updatedAt = new Date(repo.updatedAt).getTime();
 

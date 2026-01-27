@@ -95,7 +95,7 @@ function createMockGitHubData(overrides: Partial<CollectedGitHubData> = {}): Col
 describe('collectEvidence', () => {
   it('should collect evidence for a skill', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     expect(evidence).toBeDefined();
     expect(Array.isArray(evidence)).toBe(true);
@@ -104,7 +104,7 @@ describe('collectEvidence', () => {
 
   it('should include repo evidence', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     const repoEvidence = evidence.filter(e => e.type === 'repo');
     expect(repoEvidence.length).toBeGreaterThan(0);
@@ -113,7 +113,7 @@ describe('collectEvidence', () => {
 
   it('should include PR evidence for merged PRs', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     const prEvidence = evidence.filter(e => e.type === 'pr');
     expect(prEvidence.length).toBeGreaterThan(0);
@@ -122,7 +122,7 @@ describe('collectEvidence', () => {
 
   it('should include commit evidence', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     const commitEvidence = evidence.filter(e => e.type === 'commit');
     expect(commitEvidence.length).toBeGreaterThan(0);
@@ -131,7 +131,7 @@ describe('collectEvidence', () => {
 
   it('should include starred repo evidence', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     const starEvidence = evidence.filter(e => e.type === 'starred');
     expect(starEvidence.length).toBeGreaterThan(0);
@@ -141,8 +141,8 @@ describe('collectEvidence', () => {
   it('should respect maxEvidence limit', () => {
     const data = createMockGitHubData();
 
-    const evidence3 = collectEvidence('React.js', ['react'], data, 3);
-    const evidence5 = collectEvidence('React.js', ['react'], data, 5);
+    const evidence3 = collectEvidence(['react'], data, 3);
+    const evidence5 = collectEvidence(['react'], data, 5);
 
     expect(evidence3.length).toBeLessThanOrEqual(3);
     expect(evidence5.length).toBeLessThanOrEqual(5);
@@ -150,7 +150,7 @@ describe('collectEvidence', () => {
 
   it('should return empty array when no matching data', () => {
     const data = createMockGitHubData();
-    const evidence = collectEvidence('Rust', ['rust', 'cargo'], data);
+    const evidence = collectEvidence(['rust', 'cargo'], data);
 
     expect(evidence).toEqual([]);
   });
@@ -159,7 +159,7 @@ describe('collectEvidence', () => {
     const data = createMockGitHubData();
 
     // Evidence collection expects lowercase terms (caller's responsibility)
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
 
     expect(evidence.length).toBeGreaterThan(0);
     // Verify it matched against repo topics/languages which are lowercased internally
@@ -201,7 +201,7 @@ describe('collectEvidence', () => {
       ],
     });
 
-    const evidence = collectEvidence('React.js', ['react'], data);
+    const evidence = collectEvidence(['react'], data);
     const repoEvidence = evidence.filter(e => e.type === 'repo');
 
     if (repoEvidence.length >= 2) {

@@ -29,6 +29,13 @@ export interface ConstantsConfig {
     scoreSolid: number;
     scoreWorking: number;
   };
+  evidence: {
+    maxPerSkill: number;
+    repoLimit: number;
+    prLimit: number;
+    commitLimit: number;
+    starLimit: number;
+  };
 }
 
 let cachedConfig: ConstantsConfig | null = null;
@@ -95,4 +102,10 @@ export function getScoringConfig() {
 export function getExplanationThresholds() {
   const config = loadSkillsConfig();
   return config.explanationThresholds;
+}
+
+// [NOTE]: Get evidence configuration
+export function getEvidenceConfig() {
+  const config = loadSkillsConfig();
+  return config.evidence;
 }

@@ -89,32 +89,3 @@ export function extractTechnologiesFromPR(title: string, body: string | null): s
 
   return [...new Set(technologies)];
 }
-
-export interface PRStats {
-  totalPRs: number;
-  mergedPRs: number;
-  openPRs: number;
-  closedPRs: number;
-  avgPRsPerRepo: number;
-  activityByMonth: Record<string, number>;
-}
-
-export function calculatePRStats(pullRequests: PullRequestData[]): PRStats {
-  const activityByMonth: Record<string, number> = {};
-
-  for (const pr of pullRequests) {
-    const month = pr.createdAt.substring(0, 7);
-    activityByMonth[month] = (activityByMonth[month] || 0) + 1;
-  }
-
-  const repos = new Set(pullRequests.map(pr => pr.repo));
-
-  return {
-    totalPRs: pullRequests.length,
-    mergedPRs: pullRequests.filter(pr => pr.merged).length,
-    openPRs: pullRequests.filter(pr => pr.state === 'open').length,
-    closedPRs: pullRequests.filter(pr => pr.state === 'closed' && !pr.merged).length,
-    avgPRsPerRepo: repos.size > 0 ? pullRequests.length / repos.size : 0,
-    activityByMonth,
-  };
-}
