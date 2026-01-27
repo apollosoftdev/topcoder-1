@@ -2,7 +2,7 @@ import { Cache, TopcoderSkill } from '../utils/cache';
 import chalk from 'chalk';
 
 // [!IMPORTANT]: Topcoder API base URL - uses dev environment
-const TOPCODER_API_BASE = 'https://api.topcoder-dev.com/v5';
+const TOPCODER_API_BASE = process.env.TOPCODER_API_BASE || 'https://api.topcoder-dev.com/v5';
 
 // [NOTE]: Category object in standardized skills response
 export interface SkillCategoryDto {
