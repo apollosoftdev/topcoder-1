@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 
+// [NOTE]: Rate limit info extracted from GitHub API headers
 export interface RateLimitInfo {
   remaining: number;
   limit: number;
@@ -7,11 +8,12 @@ export interface RateLimitInfo {
   used: number;
 }
 
+// [!IMPORTANT]: Handles GitHub API rate limiting to prevent 403 errors
 export class RateLimiter {
-  private remaining: number = 5000;
+  private remaining: number = 5000; // [NOTE]: GitHub default for authenticated requests
   private limit: number = 5000;
   private resetTime: Date = new Date();
-  private minRemaining: number = 100;
+  private minRemaining: number = 100; // [NOTE]: Buffer before pausing
   private verbose: boolean = false;
 
   constructor(options?: { minRemaining?: number; verbose?: boolean }) {
@@ -19,6 +21,7 @@ export class RateLimiter {
     this.verbose = options?.verbose ?? false;
   }
 
+  // [!IMPORTANT]: Call after each API request to track rate limit
   updateFromHeaders(headers: {
     'x-ratelimit-remaining'?: string;
     'x-ratelimit-limit'?: string;
@@ -32,6 +35,7 @@ export class RateLimiter {
       this.limit = parseInt(headers['x-ratelimit-limit'], 10);
     }
     if (headers['x-ratelimit-reset']) {
+      // [NOTE]: GitHub returns Unix timestamp in seconds
       this.resetTime = new Date(parseInt(headers['x-ratelimit-reset'], 10) * 1000);
     }
 
@@ -49,10 +53,13 @@ export class RateLimiter {
     };
   }
 
+  // [NOTE]: Check if we're getting close to the limit
   isApproachingLimit(): boolean {
     return this.remaining <= this.minRemaining;
   }
 
+  // [!IMPORTANT]: Pauses execution if rate limit is approaching
+  // This prevents hitting 403 errors
   async waitIfNeeded(): Promise<void> {
     if (this.isApproachingLimit()) {
       const now = new Date();
@@ -71,14 +78,16 @@ export class RateLimiter {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // [NOTE]: Exponential backoff for transient errors
   async exponentialBackoff(attempt: number, maxAttempts: number = 5): Promise<boolean> {
     if (attempt >= maxAttempts) {
-      return false;
+      return false; // [NOTE]: Return false to indicate max retries reached
     }
 
+    // [NOTE]: Wait time doubles each attempt: 1s, 2s, 4s, 8s... max 60s
     const waitMs = Math.min(1000 * Math.pow(2, attempt), 60000);
     console.log(chalk.yellow(`Retry attempt ${attempt + 1}/${maxAttempts}, waiting ${waitMs / 1000}s...`));
     await this.sleep(waitMs);
-    return true;
+    return true; // [NOTE]: Return true to indicate should retry
   }
 }
