@@ -17,11 +17,9 @@ function getTechAliases(): Record<string, string[]> {
 
 export class SkillMatcher {
   private skillsApi: TopcoderSkillsAPI;
-  private aliasToSkill: Map<string, string> = new Map(); // [NOTE]: alias -> skill name lookup
 
   constructor(skillsApi: TopcoderSkillsAPI) {
     this.skillsApi = skillsApi;
-    this.buildAliasIndex();
   }
 
   // [NOTE]: Build reverse lookup from aliases to skill names (from config)
@@ -36,83 +34,65 @@ export class SkillMatcher {
     }
   }
 
-  // [!IMPORTANT]: Main matching function - maps tech terms to Topcoder skills (async)
+  // [!IMPORTANT]: Main matching function - maps tech terms to Topcoder skills via API
   async matchTechnologies(techCounts: Map<string, number>): Promise<MatchedSkill[]> {
-    const skillScores: Map<string, { score: number; terms: string[] }> = new Map();
-    const pendingSearches: Array<{ tech: string; count: number }> = [];
+    const skillScores: Map<string, { skill: TopcoderSkill; score: number; terms: string[] }> = new Map();
 
-    // [NOTE]: First pass - handle alias matches immediately
+    // [NOTE]: Process each technology term
     for (const [tech, count] of techCounts.entries()) {
-      const normalizedTech = tech.toLowerCase();
-      const matchedSkillName = this.aliasToSkill.get(normalizedTech);
+      // [NOTE]: Expand short terms before searching
+      const searchTerm = this.expandTerm(tech);
 
-      if (matchedSkillName) {
-        const existing = skillScores.get(matchedSkillName) || { score: 0, terms: [] };
-        existing.score += count;
-        if (!existing.terms.includes(tech)) {
-          existing.terms.push(tech);
-        }
-        skillScores.set(matchedSkillName, existing);
-      } else {
-        // [NOTE]: Queue for API search
-        pendingSearches.push({ tech, count });
-      }
-    }
+      // [NOTE]: Skip very short or generic terms
+      if (searchTerm.length < 2) continue;
 
-    // [NOTE]: Second pass - batch API searches for non-aliased terms
-    for (const { tech, count } of pendingSearches) {
-      const searchResults = await this.skillsApi.searchSkillsAsync(tech);
+      // [NOTE]: Search via API (autocomplete + fuzzymatch)
+      const searchResults = await this.skillsApi.searchSkillsAsync(searchTerm);
 
       if (searchResults.length > 0) {
         const bestMatch = searchResults[0];
 
-        // [NOTE]: Only accept match if it's reasonable
-        if (this.isReasonableMatch(tech, bestMatch.name)) {
-          const existing = skillScores.get(bestMatch.name) || { score: 0, terms: [] };
-          existing.score += count * 0.5; // [NOTE]: Lower weight for API matches
-          if (!existing.terms.includes(tech)) {
-            existing.terms.push(tech);
+        // [NOTE]: Validate the match is reasonable
+        if (this.isReasonableMatch(searchTerm, bestMatch.name)) {
+          const skillKey = bestMatch.id; // [NOTE]: Use ID as key to avoid duplicates
+          const existing = skillScores.get(skillKey);
+
+          if (existing) {
+            existing.score += count;
+            if (!existing.terms.includes(tech)) {
+              existing.terms.push(tech);
+            }
+          } else {
+            skillScores.set(skillKey, {
+              skill: bestMatch,
+              score: count,
+              terms: [tech],
+            });
           }
-          skillScores.set(bestMatch.name, existing);
         }
       }
     }
 
-    // [NOTE]: Convert to MatchedSkill array with Topcoder skill objects
-    const matchedSkills: MatchedSkill[] = [];
-
-    for (const [skillName, { score, terms }] of skillScores.entries()) {
-      // [NOTE]: Try to get skill from cache first
-      let skill = this.skillsApi.getSkillByName(skillName);
-
-      // [NOTE]: If not in cache, search via API
-      if (!skill) {
-        const searchResults = await this.skillsApi.searchSkillsAsync(skillName);
-        if (searchResults.length > 0) {
-          skill = searchResults[0];
-        }
-      }
-
-      if (skill) {
-        matchedSkills.push({
-          skill,
-          matchedTerms: terms,
-          rawScore: score,
-        });
-      }
-    }
+    // [NOTE]: Convert to MatchedSkill array
+    const matchedSkills: MatchedSkill[] = Array.from(skillScores.values()).map(
+      ({ skill, score, terms }) => ({
+        skill,
+        matchedTerms: terms,
+        rawScore: score,
+      })
+    );
 
     // [NOTE]: Sort by raw score descending
     return matchedSkills.sort((a, b) => b.rawScore - a.rawScore);
   }
 
-  // [NOTE]: Convenience method to get top N matches (async)
+  // [NOTE]: Convenience method to get top N matches
   async getTopMatches(techCounts: Map<string, number>, limit: number = 20): Promise<MatchedSkill[]> {
     const matches = await this.matchTechnologies(techCounts);
     return matches.slice(0, limit);
   }
 
-  // [NOTE]: Check if a fuzzy match is reasonable (not too different from the query)
+  // [NOTE]: Check if a match is reasonable (not too different from the query)
   private isReasonableMatch(query: string, skillName: string): boolean {
     const queryLower = query.toLowerCase();
     const skillLower = skillName.toLowerCase();
@@ -123,20 +103,27 @@ export class SkillMatcher {
     // [NOTE]: Skill name starts with query - good match
     if (skillLower.startsWith(queryLower)) return true;
 
-    // [NOTE]: Query starts with skill name - good match
-    // But "reactjs" -> "React" is fine, "javascript" -> "Java" is not
-    if (queryLower.startsWith(skillLower) && queryLower.length <= skillLower.length + 3) return true;
+    // [NOTE]: Query starts with skill name (e.g., "reactjs" -> "React.js")
+    if (queryLower.startsWith(skillLower.replace(/[.\s-]/g, ''))) return true;
 
     // [NOTE]: Check if query appears as a whole word in skill name
     const wordBoundary = new RegExp(`\\b${this.escapeRegex(queryLower)}\\b`, 'i');
     if (wordBoundary.test(skillLower)) return true;
 
-    // [NOTE]: Reject if skill name is much longer than query (likely a poor match)
-    if (skillLower.length > queryLower.length * 3) return false;
+    // [NOTE]: Check if skill name contains query (for compound skills)
+    if (skillLower.includes(queryLower) && queryLower.length >= 3) {
+      // [NOTE]: Reject if skill name is much longer than query
+      if (skillLower.length > queryLower.length * 4) return false;
+      return true;
+    }
 
-    // [NOTE]: Check similarity ratio - query should be significant part of skill name
-    const ratio = queryLower.length / skillLower.length;
-    return ratio > 0.4;
+    // [NOTE]: Check normalized versions (remove dots, spaces, dashes)
+    const normalizedQuery = queryLower.replace(/[.\s-]/g, '');
+    const normalizedSkill = skillLower.replace(/[.\s-]/g, '');
+    if (normalizedSkill === normalizedQuery) return true;
+    if (normalizedSkill.startsWith(normalizedQuery)) return true;
+
+    return false;
   }
 
   // [NOTE]: Escape special regex characters
