@@ -256,7 +256,7 @@ export class ScoringEngine {
   private generateExplanation(
     skillName: string,
     components: ScoreComponents,
-    score: number
+    _score: number
   ): string {
     const parts: string[] = [];
 

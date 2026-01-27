@@ -149,7 +149,7 @@ export class Cache {
 
   // [NOTE]: Saves cache without token (token saved separately)
   private save(): void {
-    const { token, tokenExpiry, ...cacheData } = this.data;
+    const { token: _token, tokenExpiry: _tokenExpiry, ...cacheData } = this.data;
     fs.writeFileSync(CACHE_FILE, JSON.stringify(cacheData, null, 2), { mode: 0o600 });
   }
 

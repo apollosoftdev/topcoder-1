@@ -22,7 +22,7 @@ export class RepoAnalyzer {
     onProgress: (current: number, total: number, name: string) => void
   ): AsyncGenerator<RepoData> {
     let current = 0;
-    let total = this.options.maxRepos;
+    const total = this.options.maxRepos;
 
     for await (const repo of this.client.paginateRepos({ maxRepos: this.options.maxRepos })) {
       const fullName = repo.full_name;

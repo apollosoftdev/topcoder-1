@@ -149,7 +149,6 @@ export class GitHubScraper {
       verbose: this.options.verbose,
     });
 
-    let repoCount = 0;
     for await (const repo of repoAnalyzer.analyzeRepos(
       processedRepos,
       (current, total, name) => {
@@ -158,7 +157,6 @@ export class GitHubScraper {
     )) {
       repos.push(repo);
       processedRepos.add(repo.fullName);
-      repoCount++;
 
       const repoCommits: CollectedGitHubData['commits'] = [];
       for await (const commit of commitAnalyzer.analyzeCommits(repo.fullName)) {
