@@ -1,6 +1,8 @@
 import { CollectedGitHubData, TopcoderSkill } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
+import { loadSkillsConfig, getFileExtensions, getExplanationThresholds } from '../utils/config';
+
 
 // [!IMPORTANT]: Final output structure for each skill recommendation
 export interface ScoredSkill {
@@ -30,25 +32,24 @@ export interface ScoringConfig {
     recency: number;
   };
   maxScore: number;
+  baseScore: number; // [NOTE]: Minimum score for any matched skill
 }
 
-// [!IMPORTANT]: Default weights - language usage is most important
-const DEFAULT_CONFIG: ScoringConfig = {
-  weights: {
-    language: 0.35,    // [NOTE]: Primary language usage weight
-    commits: 0.25,     // [NOTE]: Commit frequency weight
-    prs: 0.15,         // [NOTE]: PR contribution weight
-    projectQuality: 0.15, // [NOTE]: Stars/forks weight
-    recency: 0.10,     // [NOTE]: Recent activity weight
-  },
-  maxScore: 100,
-};
+// [!IMPORTANT]: Load config from JSON file (config/skills.json)
+function getDefaultConfig(): ScoringConfig {
+  const jsonConfig = loadSkillsConfig();
+  return {
+    weights: jsonConfig.scoring.weights,
+    maxScore: jsonConfig.scoring.maxScore,
+    baseScore: jsonConfig.scoring.baseScore,
+  };
+}
 
 export class ScoringEngine {
   private config: ScoringConfig;
 
   constructor(config?: Partial<ScoringConfig>) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = { ...getDefaultConfig(), ...config };
   }
 
   // [!IMPORTANT]: Main scoring function - processes all matched skills
@@ -56,33 +57,40 @@ export class ScoringEngine {
     matchedSkills: MatchedSkill[],
     data: CollectedGitHubData
   ): ScoredSkill[] {
+    // [NOTE]: Calculate total raw score for normalization
+    const totalRawScore = matchedSkills.reduce((sum, s) => sum + s.rawScore, 0);
     const maxRawScore = Math.max(...matchedSkills.map(s => s.rawScore), 1);
 
-    return matchedSkills.map(match => this.scoreSkill(match, data, maxRawScore));
+    return matchedSkills.map(match =>
+      this.scoreSkill(match, data, maxRawScore, totalRawScore)
+    );
   }
 
   // [NOTE]: Scores individual skill based on multiple factors
   private scoreSkill(
     match: MatchedSkill,
     data: CollectedGitHubData,
-    maxRawScore: number
+    maxRawScore: number,
+    totalRawScore: number
   ): ScoredSkill {
     const skillTerms = match.matchedTerms.map(t => t.toLowerCase());
     const skillName = match.skill.name.toLowerCase();
+    const allTerms = [...new Set([skillName, ...skillTerms])];
 
     // [NOTE]: Calculate each component score (0-100)
     const languageScore = this.calculateLanguageScore(
       skillName,
-      skillTerms,
+      allTerms,
       data,
       maxRawScore,
+      totalRawScore,
       match.rawScore
     );
 
-    const commitScore = this.calculateCommitScore(skillTerms, data);
-    const prScore = this.calculatePRScore(skillTerms, data);
-    const projectQualityScore = this.calculateProjectQualityScore(skillTerms, data);
-    const recencyScore = this.calculateRecencyScore(skillTerms, data);
+    const commitScore = this.calculateCommitScore(allTerms, data);
+    const prScore = this.calculatePRScore(allTerms, data);
+    const projectQualityScore = this.calculateProjectQualityScore(allTerms, data);
+    const recencyScore = this.calculateRecencyScore(allTerms, data);
 
     const components: ScoreComponents = {
       languageScore,
@@ -92,17 +100,22 @@ export class ScoringEngine {
       recencyScore,
     };
 
-    // [!IMPORTANT]: Weighted sum of all components
-    const { weights } = this.config;
-    const rawTotal =
+    // [!IMPORTANT]: Weighted sum of all components + base score
+    const { weights, baseScore } = this.config;
+    const weightedScore =
       languageScore * weights.language +
       commitScore * weights.commits +
       prScore * weights.prs +
       projectQualityScore * weights.projectQuality +
       recencyScore * weights.recency;
 
-    const score = Math.min(Math.round(rawTotal), this.config.maxScore);
-    const evidence = collectEvidence(match.skill.name, skillTerms, data);
+    // [NOTE]: Add base score and cap at max
+    const score = Math.min(
+      Math.round(baseScore + weightedScore * ((100 - baseScore) / 100)),
+      this.config.maxScore
+    );
+
+    const evidence = collectEvidence(match.skill.name, allTerms, data);
     const explanation = this.generateExplanation(match.skill.name, components, score);
 
     return {
@@ -114,53 +127,121 @@ export class ScoringEngine {
     };
   }
 
-  // [NOTE]: Score based on language bytes in repos
+  // [NOTE]: Get file extensions for a skill term (from config)
+  private getExtensionsForTerm(term: string): string[] {
+    return getFileExtensions(term);
+  }
+
+  // [NOTE]: Check if a filename matches skill extensions
+  private fileMatchesSkill(filename: string, terms: string[]): boolean {
+    const fileLower = filename.toLowerCase();
+
+    for (const term of terms) {
+      const extensions = this.getExtensionsForTerm(term);
+      if (extensions.some(ext => fileLower.endsWith(ext))) {
+        return true;
+      }
+      // [NOTE]: Also check if term appears in filename
+      if (fileLower.includes(term)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // [NOTE]: Score based on language bytes in repos (improved)
   private calculateLanguageScore(
-    skillName: string,
+    _skillName: string,
     terms: string[],
     data: CollectedGitHubData,
     maxRawScore: number,
+    totalRawScore: number,
     rawScore: number
   ): number {
-    const normalizedScore = (rawScore / maxRawScore) * 100;
+    // [NOTE]: Calculate relative importance (what % of detected skills is this)
+    const relativeImportance = totalRawScore > 0 ? (rawScore / totalRawScore) * 100 : 0;
 
-    let languageBonus = 0;
+    // [NOTE]: Calculate rank-based score (top skill gets 100, scales down)
+    const rankScore = (rawScore / maxRawScore) * 80;
+
+    // [NOTE]: Count repos using this skill/language
+    let matchingRepos = 0;
+    let totalLanguageBytes = 0;
+    let skillLanguageBytes = 0;
+
     for (const repo of data.repos) {
       const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
-      if (terms.some(t => repoLanguages.includes(t)) || repoLanguages.includes(skillName)) {
-        languageBonus += 5;
+      const repoTopics = repo.topics.map(t => t.toLowerCase());
+      const primaryLang = repo.language?.toLowerCase();
+      const allRepoTerms = [...repoLanguages, ...repoTopics];
+      if (primaryLang) allRepoTerms.push(primaryLang);
+
+      // [NOTE]: Check if repo uses this skill
+      if (terms.some(t => allRepoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
+        matchingRepos++;
+
+        // [NOTE]: Sum language bytes
+        for (const [lang, bytes] of Object.entries(repo.languages)) {
+          totalLanguageBytes += bytes;
+          if (terms.some(t => lang.toLowerCase().includes(t))) {
+            skillLanguageBytes += bytes;
+          }
+        }
       }
     }
 
-    return Math.min(normalizedScore + languageBonus, 100);
+    // [NOTE]: Calculate repo coverage bonus
+    const repoCoverage = data.repos.length > 0 ? (matchingRepos / data.repos.length) * 100 : 0;
+    const repoBonus = Math.min(repoCoverage * 0.5, 30);
+
+    // [NOTE]: Calculate byte percentage bonus (if applicable)
+    const bytePercentage = totalLanguageBytes > 0 ? (skillLanguageBytes / totalLanguageBytes) * 100 : 0;
+    const byteBonus = Math.min(bytePercentage * 0.3, 20);
+
+    // [NOTE]: Combine scores
+    const combinedScore = rankScore + repoBonus + byteBonus + (relativeImportance * 0.2);
+
+    return Math.min(Math.round(combinedScore), 100);
   }
 
-  // [NOTE]: Score based on commit messages and files changed
+  // [NOTE]: Score based on commit messages and files changed (improved)
   private calculateCommitScore(terms: string[], data: CollectedGitHubData): number {
     if (data.commits.length === 0) return 0;
 
     let relevantCommits = 0;
+    let strongMatches = 0;
+
     for (const commit of data.commits) {
       const messageLower = commit.message.toLowerCase();
       const filesLower = commit.filesChanged.map(f => f.toLowerCase());
 
-      if (
-        terms.some(t => messageLower.includes(t)) ||
-        terms.some(t => filesLower.some(f => f.includes(t)))
-      ) {
+      // [NOTE]: Check file extensions first (more reliable)
+      const hasMatchingFile = filesLower.some(file => this.fileMatchesSkill(file, terms));
+
+      // [NOTE]: Check commit message
+      const hasMatchingMessage = terms.some(t => messageLower.includes(t));
+
+      if (hasMatchingFile) {
+        relevantCommits++;
+        strongMatches++;
+      } else if (hasMatchingMessage) {
         relevantCommits++;
       }
     }
 
-    const percentage = (relevantCommits / data.commits.length) * 100;
-    const countBonus = Math.min(relevantCommits / 10, 30);
+    if (relevantCommits === 0) return 0;
 
-    return Math.min(percentage + countBonus, 100);
+    // [NOTE]: Calculate scores
+    const fileMatchScore = (strongMatches / data.commits.length) * 60;
+    const messageMatchScore = ((relevantCommits - strongMatches) / data.commits.length) * 30;
+    const volumeBonus = Math.min(relevantCommits / 5, 20); // [NOTE]: Up to 20 bonus for 100+ commits
+
+    return Math.min(Math.round(fileMatchScore + messageMatchScore + volumeBonus), 100);
   }
 
   // [NOTE]: Score based on PR titles/descriptions and merge rate
   private calculatePRScore(terms: string[], data: CollectedGitHubData): number {
-    if (data.pullRequests.length === 0) return 0;
+    if (data.pullRequests.length === 0) return 20; // [NOTE]: Base score if no PRs (not everyone uses PRs)
 
     let relevantPRs = 0;
     let mergedPRs = 0;
@@ -168,18 +249,22 @@ export class ScoringEngine {
     for (const pr of data.pullRequests) {
       const textLower = `${pr.title} ${pr.body || ''}`.toLowerCase();
 
-      if (terms.some(t => textLower.includes(t))) {
+      // [NOTE]: Check PR content for skill terms
+      const hasMatchingContent = terms.some(t => textLower.includes(t));
+
+      if (hasMatchingContent) {
         relevantPRs++;
         if (pr.merged) mergedPRs++;
       }
     }
 
-    if (relevantPRs === 0) return 0;
+    if (relevantPRs === 0) return 20;
 
     const relevanceScore = (relevantPRs / data.pullRequests.length) * 50;
-    const mergeRate = (mergedPRs / relevantPRs) * 50;
+    const mergeRate = relevantPRs > 0 ? (mergedPRs / relevantPRs) * 40 : 0;
+    const volumeBonus = Math.min(relevantPRs * 2, 10);
 
-    return Math.min(relevanceScore + mergeRate, 100);
+    return Math.min(Math.round(relevanceScore + mergeRate + volumeBonus), 100);
   }
 
   // [NOTE]: Score based on stars and forks (project popularity)
@@ -187,113 +272,148 @@ export class ScoringEngine {
     let totalStars = 0;
     let totalForks = 0;
     let relevantRepos = 0;
+    let ownedRepos = 0;
 
     for (const repo of data.repos) {
-      const repoTerms = [
-        repo.language?.toLowerCase(),
-        ...Object.keys(repo.languages).map(l => l.toLowerCase()),
-        ...repo.topics.map(t => t.toLowerCase()),
-      ].filter(Boolean);
+      const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
+      const repoTopics = repo.topics.map(t => t.toLowerCase());
+      const primaryLang = repo.language?.toLowerCase();
+      const repoTerms = [...repoLanguages, ...repoTopics];
+      if (primaryLang) repoTerms.push(primaryLang);
 
-      if (terms.some(t => repoTerms.includes(t))) {
+      if (terms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
         relevantRepos++;
         totalStars += repo.stars;
         totalForks += repo.forks;
+        if (repo.isOwner) ownedRepos++;
       }
     }
 
     if (relevantRepos === 0) return 0;
 
-    // [NOTE]: Log scale to prevent huge projects from dominating
-    const starScore = Math.min(Math.log10(totalStars + 1) * 20, 50);
-    const forkScore = Math.min(Math.log10(totalForks + 1) * 15, 30);
-    const repoCountScore = Math.min(relevantRepos * 2, 20);
+    // [NOTE]: Better scoring that doesn't require many stars
+    const hasReposScore = Math.min(relevantRepos * 10, 40);
+    const ownedRepoScore = Math.min(ownedRepos * 5, 20);
+    const starScore = Math.min(Math.log10(totalStars + 1) * 15, 25);
+    const forkScore = Math.min(Math.log10(totalForks + 1) * 10, 15);
 
-    return Math.min(starScore + forkScore + repoCountScore, 100);
+    return Math.min(Math.round(hasReposScore + ownedRepoScore + starScore + forkScore), 100);
   }
 
   // [NOTE]: Score based on recent activity (last 6-12 months)
   private calculateRecencyScore(terms: string[], data: CollectedGitHubData): number {
     const now = Date.now();
-    const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
     const sixMonthsAgo = now - 180 * 24 * 60 * 60 * 1000;
+    const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
+    const twoYearsAgo = now - 730 * 24 * 60 * 60 * 1000;
 
-    let recentActivity = 0;
-    let veryRecentActivity = 0;
+    let veryRecentRepos = 0;  // Last 6 months
+    let recentRepos = 0;      // Last year
+    let olderRepos = 0;       // Last 2 years
+    let matchingRepos = 0;
 
     for (const repo of data.repos) {
-      const repoTerms = [
-        repo.language?.toLowerCase(),
-        ...Object.keys(repo.languages).map(l => l.toLowerCase()),
-        ...repo.topics.map(t => t.toLowerCase()),
-      ].filter(Boolean);
+      const repoLanguages = Object.keys(repo.languages).map(l => l.toLowerCase());
+      const repoTopics = repo.topics.map(t => t.toLowerCase());
+      const primaryLang = repo.language?.toLowerCase();
+      const repoTerms = [...repoLanguages, ...repoTopics];
+      if (primaryLang) repoTerms.push(primaryLang);
 
-      if (terms.some(t => repoTerms.includes(t))) {
+      if (terms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)))) {
+        matchingRepos++;
         const updatedAt = new Date(repo.updatedAt).getTime();
-        if (updatedAt > oneYearAgo) recentActivity++;
-        if (updatedAt > sixMonthsAgo) veryRecentActivity++;
+
+        if (updatedAt > sixMonthsAgo) veryRecentRepos++;
+        else if (updatedAt > oneYearAgo) recentRepos++;
+        else if (updatedAt > twoYearsAgo) olderRepos++;
       }
     }
 
+    if (matchingRepos === 0) return 0;
+
+    // [NOTE]: Recent commits with skill
+    let recentCommits = 0;
     for (const commit of data.commits) {
       const commitDate = new Date(commit.date).getTime();
       if (commitDate > oneYearAgo) {
-        const messageLower = commit.message.toLowerCase();
-        if (terms.some(t => messageLower.includes(t))) {
-          if (commitDate > sixMonthsAgo) veryRecentActivity++;
-          else recentActivity++;
+        const filesLower = commit.filesChanged.map(f => f.toLowerCase());
+        if (filesLower.some(file => this.fileMatchesSkill(file, terms))) {
+          recentCommits++;
         }
       }
     }
 
-    const recentScore = Math.min(recentActivity * 5, 50);
-    const veryRecentScore = Math.min(veryRecentActivity * 10, 50);
+    // [NOTE]: Calculate recency score
+    const veryRecentScore = Math.min(veryRecentRepos * 15, 50);
+    const recentScore = Math.min(recentRepos * 8, 25);
+    const olderScore = Math.min(olderRepos * 3, 10);
+    const commitBonus = Math.min(recentCommits / 2, 15);
 
-    return Math.min(recentScore + veryRecentScore, 100);
+    return Math.min(Math.round(veryRecentScore + recentScore + olderScore + commitBonus), 100);
   }
 
   // [NOTE]: Generate human-readable explanation for the score
   private generateExplanation(
     skillName: string,
     components: ScoreComponents,
-    _score: number
+    score: number
   ): string {
     const parts: string[] = [];
 
-    if (components.languageScore >= 70) {
+    // [NOTE]: Get thresholds from config (config/constants.json)
+    const T = getExplanationThresholds();
+
+    // [NOTE]: Describe language score
+    if (components.languageScore >= T.languageStrong) {
       parts.push(`Strong ${skillName} usage in repositories`);
-    } else if (components.languageScore >= 40) {
+    } else if (components.languageScore >= T.languageModerate) {
       parts.push(`Moderate ${skillName} experience`);
+    } else if (components.languageScore > 0) {
+      parts.push(`Some ${skillName} usage detected`);
     }
 
-    if (components.commitScore >= 50) {
+    // [NOTE]: Describe activity
+    if (components.commitScore >= T.commitActive) {
       parts.push('active commit history');
     }
 
-    if (components.prScore >= 50) {
+    if (components.prScore >= T.prSignificant) {
       parts.push('significant PR contributions');
     }
 
-    if (components.projectQualityScore >= 50) {
-      parts.push('high-quality projects');
+    if (components.projectQualityScore >= T.projectQuality) {
+      parts.push('quality projects');
     }
 
-    if (components.recencyScore >= 70) {
+    // [NOTE]: Describe recency
+    if (components.recencyScore >= T.recencyRecent) {
       parts.push('recent activity');
+    } else if (components.recencyScore >= T.recencyOngoing) {
+      parts.push('ongoing usage');
     }
 
     if (parts.length === 0) {
-      return `Basic experience with ${skillName} detected`;
+      if (score >= T.scoreSolid) {
+        return `Solid experience with ${skillName} based on repository analysis`;
+      } else if (score >= T.scoreWorking) {
+        return `Working knowledge of ${skillName} detected`;
+      }
+      return `Basic exposure to ${skillName} detected`;
     }
 
-    return parts.join(', ').replace(/^./, c => c.toUpperCase());
+    // [NOTE]: Capitalize first letter
+    const explanation = parts.join(', ');
+    return explanation.charAt(0).toUpperCase() + explanation.slice(1);
   }
 }
 
-// [NOTE]: Filter and sort skills by score, with minimum threshold
+// [NOTE]: Filter and sort skills by score, with minimum threshold from config
 export function getTopScoredSkills(skills: ScoredSkill[], limit: number = 20): ScoredSkill[] {
+  const config = loadSkillsConfig();
+  const minThreshold = config.scoring.minScoreThreshold;
+
   return skills
-    .filter(s => s.score >= 10) // [NOTE]: Minimum 10 score threshold
+    .filter(s => s.score >= minThreshold)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }

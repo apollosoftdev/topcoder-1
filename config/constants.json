@@ -1,0 +1,105 @@
+{
+  "$schema": "./skills.schema.json",
+  "description": "Skill matching configuration - edit without rebuilding the app",
+
+  "fileExtensions": {
+    "javascript": [".js", ".jsx", ".mjs", ".cjs"],
+    "typescript": [".ts", ".tsx"],
+    "python": [".py", ".pyw", ".pyi"],
+    "java": [".java"],
+    "c++": [".cpp", ".cc", ".cxx", ".hpp", ".h"],
+    "c#": [".cs"],
+    "go": [".go"],
+    "rust": [".rs"],
+    "ruby": [".rb", ".erb"],
+    "php": [".php"],
+    "swift": [".swift"],
+    "kotlin": [".kt", ".kts"],
+    "scala": [".scala"],
+    "html": [".html", ".htm"],
+    "css": [".css", ".scss", ".sass", ".less"],
+    "vue": [".vue"],
+    "svelte": [".svelte"],
+    "shell": [".sh", ".bash", ".zsh"],
+    "sql": [".sql"],
+    "docker": ["dockerfile", ".dockerfile"],
+    "yaml": [".yml", ".yaml"],
+    "json": [".json"],
+    "markdown": [".md", ".markdown"],
+    "react": [".jsx", ".tsx"],
+    "angular": [".component.ts", ".module.ts"],
+    "c": [".c", ".h"]
+  },
+
+  "shortTermExpansions": {
+    "js": "javascript",
+    "ts": "typescript",
+    "py": "python",
+    "rb": "ruby",
+    "kt": "kotlin",
+    "rs": "rust",
+    "cpp": "c++",
+    "cxx": "c++",
+    "cs": "c#",
+    "sh": "shell"
+  },
+
+  "techAliases": {
+    "JavaScript": ["javascript", "js", "ecmascript", "es6", "es2015", "es2020", "nodejs", "node.js"],
+    "TypeScript": ["typescript", "ts"],
+    "Python": ["python", "python3", "py"],
+    "Java": ["java", "jdk", "jvm", "spring", "maven", "gradle"],
+    "C++": ["c++", "cpp", "cxx"],
+    "C#": ["c#", "csharp", "dotnet", ".net", "aspnet"],
+    "Go": ["go", "golang"],
+    "Rust": ["rust", "rustlang", "cargo"],
+    "Ruby": ["ruby", "rb", "rails", "ruby on rails"],
+    "PHP": ["php", "laravel", "symfony"],
+    "Swift": ["swift", "ios", "xcode"],
+    "Kotlin": ["kotlin", "kt", "android"],
+    "React.js": ["react", "reactjs", "react.js", "jsx"],
+    "Vue.js": ["vue", "vuejs", "vue.js", "nuxt"],
+    "Angular": ["angular", "angularjs", "ng"],
+    "Node.js": ["node", "nodejs", "node.js", "express", "npm"],
+    "Docker": ["docker", "dockerfile", "container", "containers", "docker-compose"],
+    "Kubernetes": ["kubernetes", "k8s", "kubectl", "helm"],
+    "AWS": ["aws", "amazon web services", "ec2", "s3", "lambda", "cloudformation"],
+    "PostgreSQL": ["postgresql", "postgres", "psql"],
+    "MySQL": ["mysql", "mariadb"],
+    "MongoDB": ["mongodb", "mongo", "mongoose"],
+    "Redis": ["redis"],
+    "GraphQL": ["graphql", "apollo"],
+    "CI/CD": ["ci", "cd", "ci/cd", "github actions", "jenkins", "circleci", "gitlab-ci"],
+    "Git": ["git", "github", "gitlab", "bitbucket"],
+    "Linux": ["linux", "ubuntu", "debian", "centos", "unix", "bash"],
+    "Machine Learning": ["machine learning", "ml", "deep learning", "tensorflow", "pytorch"],
+    "Data Science": ["data science", "pandas", "numpy", "jupyter"],
+    "HTML": ["html", "html5"],
+    "CSS": ["css", "css3", "scss", "sass", "less", "tailwind", "bootstrap"]
+  },
+
+  "scoring": {
+    "weights": {
+      "language": 0.40,
+      "commits": 0.20,
+      "prs": 0.10,
+      "projectQuality": 0.10,
+      "recency": 0.20
+    },
+    "baseScore": 15,
+    "maxScore": 100,
+    "minScoreThreshold": 15
+  },
+
+  "explanationThresholds": {
+    "languageStrong": 60,
+    "languageModerate": 30,
+    "commitActive": 40,
+    "prSignificant": 40,
+    "projectQuality": 40,
+    "recencyRecent": 60,
+    "recencyOngoing": 30,
+    "scoreSolid": 50,
+    "scoreWorking": 30
+  }
+}

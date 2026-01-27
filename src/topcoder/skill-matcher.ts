@@ -1,5 +1,6 @@
 import { TopcoderSkillsAPI } from './skills-api';
 import { TopcoderSkill } from '../utils/cache';
+import { loadSkillsConfig } from '../utils/config';
 
 // [NOTE]: Intermediate result before scoring
 export interface MatchedSkill {
@@ -8,30 +9,31 @@ export interface MatchedSkill {
   rawScore: number; // [NOTE]: Weighted count before normalization
 }
 
-// [NOTE]: Minimal aliases for very short terms that API autocomplete can't handle
-// These are expanded to full terms before API search, not direct skill mappings
-const SHORT_TERM_EXPANSIONS: Record<string, string> = {
-  'js': 'javascript',
-  'ts': 'typescript',
-  'py': 'python',
-  'rb': 'ruby',
-  'kt': 'kotlin',
-  'rs': 'rust',
-  'cpp': 'c++',
-  'cxx': 'c++',
-};
+// [NOTE]: Load tech aliases from config file (config/skills.json)
+function getTechAliases(): Record<string, string[]> {
+  const config = loadSkillsConfig();
+  return config.techAliases;
+}
 
 export class SkillMatcher {
   private skillsApi: TopcoderSkillsAPI;
+  private aliasToSkill: Map<string, string> = new Map(); // [NOTE]: alias -> skill name lookup
 
   constructor(skillsApi: TopcoderSkillsAPI) {
     this.skillsApi = skillsApi;
+    this.buildAliasIndex();
   }
 
-  // [NOTE]: Expand short terms to searchable terms
-  private expandTerm(term: string): string {
-    const lower = term.toLowerCase();
-    return SHORT_TERM_EXPANSIONS[lower] || term;
+  // [NOTE]: Build reverse lookup from aliases to skill names (from config)
+  private buildAliasIndex(): void {
+    const techAliases = getTechAliases();
+    for (const [skillName, aliases] of Object.entries(techAliases)) {
+      for (const alias of aliases) {
+        this.aliasToSkill.set(alias.toLowerCase(), skillName);
+      }
+      // [NOTE]: Also map the skill name itself
+      this.aliasToSkill.set(skillName.toLowerCase(), skillName);
+    }
   }
 
   // [!IMPORTANT]: Main matching function - maps tech terms to Topcoder skills via API
@@ -129,5 +131,12 @@ export class SkillMatcher {
   // [NOTE]: Escape special regex characters
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // [NOTE]: Expand short terms to full names (e.g., "js" -> "javascript")
+  private expandTerm(term: string): string {
+    const config = loadSkillsConfig();
+    const shortTermExpansions = config.shortTermExpansions;
+    return shortTermExpansions[term.toLowerCase()] || term;
   }
 }
