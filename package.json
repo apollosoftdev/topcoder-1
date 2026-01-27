@@ -1,0 +1,39 @@
+{
+  "name": "topcoder-github-skills-cli",
+  "version": "1.0.0",
+  "description": "CLI tool that authenticates with GitHub, deep-scrapes user profile, and maps technologies to Topcoder skills",
+  "main": "dist/index.js",
+  "bin": {
+    "tc-skills": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "topcoder",
+    "github",
+    "skills",
+    "cli"
+  ],
+  "author": "apollosoftdev",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "ora": "^5.4.1",
+    "conf": "^10.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
