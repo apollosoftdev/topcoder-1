@@ -89,5 +89,17 @@
     "baseScore": 15,
     "maxScore": 100,
     "minScoreThreshold": 15
+  },
+
+  "explanationThresholds": {
+    "languageStrong": 60,
+    "languageModerate": 30,
+    "commitActive": 40,
+    "prSignificant": 40,
+    "projectQuality": 40,
+    "recencyRecent": 60,
+    "recencyOngoing": 30,
+    "scoreSolid": 50,
+    "scoreWorking": 30
   }
 }

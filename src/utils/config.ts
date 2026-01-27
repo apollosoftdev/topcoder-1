@@ -18,6 +18,17 @@ export interface ConstantsConfig {
     maxScore: number;
     minScoreThreshold: number;
   };
+  explanationThresholds: {
+    languageStrong: number;
+    languageModerate: number;
+    commitActive: number;
+    prSignificant: number;
+    projectQuality: number;
+    recencyRecent: number;
+    recencyOngoing: number;
+    scoreSolid: number;
+    scoreWorking: number;
+  };
 }
 
 let cachedConfig: ConstantsConfig | null = null;
@@ -78,4 +89,10 @@ export function expandShortTerm(term: string): string {
 export function getScoringConfig() {
   const config = loadSkillsConfig();
   return config.scoring;
+}
+
+// [NOTE]: Get explanation thresholds
+export function getExplanationThresholds() {
+  const config = loadSkillsConfig();
+  return config.explanationThresholds;
 }

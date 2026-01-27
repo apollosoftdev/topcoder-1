@@ -1,27 +1,8 @@
 import { CollectedGitHubData, TopcoderSkill } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
-import { loadSkillsConfig, getFileExtensions } from '../utils/config';
+import { loadSkillsConfig, getFileExtensions, getExplanationThresholds } from '../utils/config';
 
-// [NOTE]: Thresholds for explanation generation
-const EXPLANATION_THRESHOLDS = {
-  // Language score thresholds
-  LANGUAGE_STRONG: 60,
-  LANGUAGE_MODERATE: 30,
-
-  // Activity thresholds
-  COMMIT_ACTIVE: 40,
-  PR_SIGNIFICANT: 40,
-  PROJECT_QUALITY: 40,
-
-  // Recency thresholds
-  RECENCY_RECENT: 60,
-  RECENCY_ONGOING: 30,
-
-  // Overall score fallback thresholds
-  SCORE_SOLID: 50,
-  SCORE_WORKING: 30,
-} as const;
 
 // [!IMPORTANT]: Final output structure for each skill recommendation
 export interface ScoredSkill {
@@ -379,41 +360,42 @@ export class ScoringEngine {
   ): string {
     const parts: string[] = [];
 
-    const T = EXPLANATION_THRESHOLDS;
+    // [NOTE]: Get thresholds from config (config/constants.json)
+    const T = getExplanationThresholds();
 
     // [NOTE]: Describe language score
-    if (components.languageScore >= T.LANGUAGE_STRONG) {
+    if (components.languageScore >= T.languageStrong) {
       parts.push(`Strong ${skillName} usage in repositories`);
-    } else if (components.languageScore >= T.LANGUAGE_MODERATE) {
+    } else if (components.languageScore >= T.languageModerate) {
       parts.push(`Moderate ${skillName} experience`);
     } else if (components.languageScore > 0) {
       parts.push(`Some ${skillName} usage detected`);
     }
 
     // [NOTE]: Describe activity
-    if (components.commitScore >= T.COMMIT_ACTIVE) {
+    if (components.commitScore >= T.commitActive) {
       parts.push('active commit history');
     }
 
-    if (components.prScore >= T.PR_SIGNIFICANT) {
+    if (components.prScore >= T.prSignificant) {
       parts.push('significant PR contributions');
     }
 
-    if (components.projectQualityScore >= T.PROJECT_QUALITY) {
+    if (components.projectQualityScore >= T.projectQuality) {
       parts.push('quality projects');
     }
 
     // [NOTE]: Describe recency
-    if (components.recencyScore >= T.RECENCY_RECENT) {
+    if (components.recencyScore >= T.recencyRecent) {
       parts.push('recent activity');
-    } else if (components.recencyScore >= T.RECENCY_ONGOING) {
+    } else if (components.recencyScore >= T.recencyOngoing) {
       parts.push('ongoing usage');
     }
 
     if (parts.length === 0) {
-      if (score >= T.SCORE_SOLID) {
+      if (score >= T.scoreSolid) {
         return `Solid experience with ${skillName} based on repository analysis`;
-      } else if (score >= T.SCORE_WORKING) {
+      } else if (score >= T.scoreWorking) {
         return `Working knowledge of ${skillName} detected`;
       }
       return `Basic exposure to ${skillName} detected`;
