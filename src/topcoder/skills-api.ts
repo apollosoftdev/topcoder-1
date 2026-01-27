@@ -1,7 +1,7 @@
 import { Cache, TopcoderSkill } from '../utils/cache';
 import chalk from 'chalk';
 
-// [!IMPORTANT]: Topcoder API base URL - uses dev environment
+// [!IMPORTANT]: Topcoder API base URL - configurable via environment
 const TOPCODER_API_BASE = process.env.TOPCODER_API_BASE || 'https://api.topcoder-dev.com/v5';
 
 // [NOTE]: Category object in standardized skills response
@@ -19,99 +19,175 @@ export interface TopcoderSkillResponse {
   category?: SkillCategoryDto;
 }
 
+// [NOTE]: Response from autocomplete endpoint
+export interface AutocompleteResponse {
+  id: string;
+  name: string;
+  category?: SkillCategoryDto;
+}
+
+// [NOTE]: Response from fuzzymatch endpoint
+export interface FuzzyMatchResponse {
+  id: string;
+  name: string;
+}
+
 export class TopcoderSkillsAPI {
   private cache: Cache;
-  private skills: TopcoderSkill[] = [];
-  private skillsByName: Map<string, TopcoderSkill> = new Map(); // [NOTE]: name -> skill lookup
-  private skillsById: Map<string, TopcoderSkill> = new Map(); // [NOTE]: id -> skill lookup
+  private skillCache: Map<string, TopcoderSkill> = new Map(); // [NOTE]: In-memory cache for looked-up skills
+  private initialized = false;
 
   constructor(cache: Cache) {
     this.cache = cache;
   }
 
-  // [!IMPORTANT]: Must call this before using other methods
+  // [!IMPORTANT]: Initialize the API - now lightweight, doesn't load all skills
   async initialize(): Promise<void> {
-    // [NOTE]: Try cache first (valid for 24 hours)
+    // [NOTE]: Load any previously cached skills into memory
     const cached = this.cache.getSkills();
     if (cached) {
-      this.skills = cached.skills;
-      this.buildIndexes();
-      return;
+      for (const skill of cached.skills) {
+        this.skillCache.set(skill.name.toLowerCase(), skill);
+      }
     }
-
-    await this.fetchSkills();
+    this.initialized = true;
+    console.log(chalk.gray('Topcoder Skills API initialized'));
   }
 
-  // [NOTE]: Fetches all skills from Topcoder Standardized Skills API
-  private async fetchSkills(): Promise<void> {
-    console.log(chalk.gray('Fetching Topcoder skills list...'));
+  // [NOTE]: Use API autocomplete endpoint for prefix matching
+  async autocomplete(term: string, size: number = 10): Promise<TopcoderSkill[]> {
+    if (!term || term.length < 2) return [];
 
     try {
-      // [NOTE]: Use disablePagination=true to get all skills in one request
       const response = await fetch(
-        `${TOPCODER_API_BASE}/standardized-skills/skills?disablePagination=true`,
+        `${TOPCODER_API_BASE}/standardized-skills/skills/autocomplete?term=${encodeURIComponent(term)}&size=${size}`,
         {
-          headers: {
-            Accept: 'application/json',
-          },
+          headers: { Accept: 'application/json' },
         }
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch skills: ${response.status}`);
+        return [];
       }
 
-      const data = await response.json() as TopcoderSkillResponse[];
+      const data = await response.json() as AutocompleteResponse[];
 
-      // [NOTE]: Map API response to internal TopcoderSkill format
-      this.skills = data.map(skill => ({
-        id: skill.id,
-        name: skill.name,
-        category: skill.category?.name,
+      // [NOTE]: Convert and cache results
+      const skills = data.map(item => this.toTopcoderSkill(item));
+      this.cacheSkills(skills);
+
+      return skills;
+    } catch {
+      return [];
+    }
+  }
+
+  // [NOTE]: Use API fuzzymatch endpoint for typo-tolerant matching
+  async fuzzyMatch(term: string, size: number = 10): Promise<TopcoderSkill[]> {
+    if (!term || term.length < 2) return [];
+
+    try {
+      const response = await fetch(
+        `${TOPCODER_API_BASE}/standardized-skills/skills/fuzzymatch?term=${encodeURIComponent(term)}&size=${size}`,
+        {
+          headers: { Accept: 'application/json' },
+        }
+      );
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json() as FuzzyMatchResponse[];
+
+      // [NOTE]: Convert to TopcoderSkill (fuzzymatch doesn't return category)
+      const skills = data.map(item => ({
+        id: item.id,
+        name: item.name,
+        category: undefined,
       }));
+      this.cacheSkills(skills);
 
-      this.cache.setSkills(this.skills); // [NOTE]: Cache for 24 hours
-      this.buildIndexes();
-
-      console.log(chalk.gray(`Loaded ${this.skills.length} Topcoder skills`));
-    } catch (error) {
-      // [NOTE]: Fail gracefully if API is unavailable
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Could not fetch Topcoder skills: ${errorMessage}. Please check your network connection and try again.`);
+      return skills;
+    } catch {
+      return [];
     }
   }
 
-  // [NOTE]: Build lookup indexes for fast access
-  private buildIndexes(): void {
-    this.skillsByName = new Map();
-    this.skillsById = new Map();
+  // [NOTE]: Smart search combining autocomplete and fuzzy match
+  async searchSkillsAsync(query: string): Promise<TopcoderSkill[]> {
+    const queryLower = query.toLowerCase().trim();
+    if (!queryLower) return [];
 
-    for (const skill of this.skills) {
-      this.skillsByName.set(skill.name.toLowerCase(), skill);
-      this.skillsById.set(skill.id, skill);
+    // [NOTE]: Check local cache first
+    const cached = this.skillCache.get(queryLower);
+    if (cached) return [cached];
+
+    // [NOTE]: Try autocomplete first (prefix match)
+    const autocompleteResults = await this.autocomplete(query, 5);
+    if (autocompleteResults.length > 0) {
+      // [NOTE]: Prioritize exact matches
+      const exactMatch = autocompleteResults.find(s => s.name.toLowerCase() === queryLower);
+      if (exactMatch) return [exactMatch];
+      return autocompleteResults;
     }
+
+    // [NOTE]: Fallback to fuzzy match
+    const fuzzyResults = await this.fuzzyMatch(query, 5);
+    return fuzzyResults;
   }
 
-  // [NOTE]: Case-insensitive lookup by name
+  // [NOTE]: Get skill by exact name (from cache)
   getSkillByName(name: string): TopcoderSkill | undefined {
-    return this.skillsByName.get(name.toLowerCase());
+    return this.skillCache.get(name.toLowerCase());
   }
 
+  // [NOTE]: Get skill by ID (from cache)
   getSkillById(id: string): TopcoderSkill | undefined {
-    return this.skillsById.get(id);
+    for (const skill of this.skillCache.values()) {
+      if (skill.id === id) return skill;
+    }
+    return undefined;
   }
 
-  // [NOTE]: Fuzzy search in skill names and categories
-  searchSkills(query: string): TopcoderSkill[] {
-    const queryLower = query.toLowerCase();
-    return this.skills.filter(
-      skill =>
-        skill.name.toLowerCase().includes(queryLower) ||
-        skill.category?.toLowerCase().includes(queryLower)
-    );
+  // [NOTE]: Add skill to cache
+  addToCache(skill: TopcoderSkill): void {
+    this.skillCache.set(skill.name.toLowerCase(), skill);
   }
 
-  getAllSkills(): TopcoderSkill[] {
-    return [...this.skills];
+  // [NOTE]: Cache multiple skills
+  private cacheSkills(skills: TopcoderSkill[]): void {
+    for (const skill of skills) {
+      this.skillCache.set(skill.name.toLowerCase(), skill);
+    }
+    // [NOTE]: Persist to disk cache periodically
+    this.persistCache();
+  }
+
+  // [NOTE]: Persist in-memory cache to disk
+  private persistCache(): void {
+    const skills = Array.from(this.skillCache.values());
+    if (skills.length > 0) {
+      this.cache.setSkills(skills);
+    }
+  }
+
+  // [NOTE]: Convert API response to internal format
+  private toTopcoderSkill(response: AutocompleteResponse | TopcoderSkillResponse): TopcoderSkill {
+    return {
+      id: response.id,
+      name: response.name,
+      category: response.category?.name,
+    };
+  }
+
+  // [NOTE]: Get count of cached skills
+  getCachedSkillCount(): number {
+    return this.skillCache.size;
+  }
+
+  // [NOTE]: Check if API is initialized
+  isInitialized(): boolean {
+    return this.initialized;
   }
 }

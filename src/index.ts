@@ -145,11 +145,12 @@ async function run(options: CLIOptions): Promise<void> {
   // [NOTE]: Step 3 - Scrape GitHub data
   const { data: githubData, stats } = await scraper.scrape();
 
-  // [NOTE]: Step 4 - Fetch Topcoder skills
-  progress.start('Fetching Topcoder skills...');
+  // [NOTE]: Step 4 - Initialize Topcoder skills API
+  progress.start('Initializing Topcoder skills API...');
   const skillsApi = new TopcoderSkillsAPI(cache);
   await skillsApi.initialize();
-  progress.succeed(`Loaded ${skillsApi.getAllSkills().length} Topcoder skills`);
+  const cachedCount = skillsApi.getCachedSkillCount();
+  progress.succeed(cachedCount > 0 ? `Skills API ready (${cachedCount} cached)` : 'Skills API ready');
 
   // [NOTE]: Step 5 - Extract technologies from GitHub data
   progress.start('Analyzing technologies...');
@@ -159,7 +160,7 @@ async function run(options: CLIOptions): Promise<void> {
   // [NOTE]: Step 6 - Match technologies to Topcoder skills
   progress.start('Matching skills...');
   const skillMatcher = new SkillMatcher(skillsApi);
-  const matchedSkills = skillMatcher.getTopMatches(techCounts, 30);
+  const matchedSkills = await skillMatcher.getTopMatches(techCounts, 30);
   progress.succeed(`Matched ${matchedSkills.length} skills`);
 
   // [NOTE]: Step 7 - Score and rank skills
