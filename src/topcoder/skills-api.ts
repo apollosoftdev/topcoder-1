@@ -4,12 +4,19 @@ import chalk from 'chalk';
 // [!IMPORTANT]: Topcoder API base URL - uses dev environment
 const TOPCODER_API_BASE = 'https://api.topcoder-dev.com/v5';
 
-// [NOTE]: Raw response from Topcoder API
+// [NOTE]: Category object in standardized skills response
+export interface SkillCategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+// [NOTE]: Raw response from Topcoder Standardized Skills API
 export interface TopcoderSkillResponse {
   id: string;
   name: string;
-  categoryId?: string;
-  categoryName?: string;
+  description?: string;
+  category?: SkillCategoryDto;
 }
 
 export class TopcoderSkillsAPI {
@@ -35,53 +42,35 @@ export class TopcoderSkillsAPI {
     await this.fetchSkills();
   }
 
-  // [NOTE]: Fetches all skills from Topcoder API with pagination
+  // [NOTE]: Fetches all skills from Topcoder Standardized Skills API
   private async fetchSkills(): Promise<void> {
     console.log(chalk.gray('Fetching Topcoder skills list...'));
 
     try {
-      const allSkills: TopcoderSkill[] = [];
-      let page = 1;
-      const perPage = 100;
-      let hasMore = true;
-
-      // [NOTE]: Paginate through all skills
-      while (hasMore) {
-        const response = await fetch(
-          `${TOPCODER_API_BASE}/skills?page=${page}&perPage=${perPage}`,
-          {
-            headers: {
-              Accept: 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch skills: ${response.status}`);
+      // [NOTE]: Use disablePagination=true to get all skills in one request
+      const response = await fetch(
+        `${TOPCODER_API_BASE}/standardized-skills/skills?disablePagination=true`,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
         }
+      );
 
-        const data = await response.json() as TopcoderSkillResponse[];
-
-        if (data.length === 0) {
-          hasMore = false;
-        } else {
-          for (const skill of data) {
-            allSkills.push({
-              id: skill.id,
-              name: skill.name,
-              category: skill.categoryName,
-            });
-          }
-          page++;
-
-          if (data.length < perPage) {
-            hasMore = false;
-          }
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch skills: ${response.status}`);
       }
 
-      this.skills = allSkills;
-      this.cache.setSkills(allSkills); // [NOTE]: Cache for 24 hours
+      const data = await response.json() as TopcoderSkillResponse[];
+
+      // [NOTE]: Map API response to internal TopcoderSkill format
+      this.skills = data.map(skill => ({
+        id: skill.id,
+        name: skill.name,
+        category: skill.category?.name,
+      }));
+
+      this.cache.setSkills(this.skills); // [NOTE]: Cache for 24 hours
       this.buildIndexes();
 
       console.log(chalk.gray(`Loaded ${this.skills.length} Topcoder skills`));
