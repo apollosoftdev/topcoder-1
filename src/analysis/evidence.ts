@@ -138,7 +138,7 @@ function collectStarEvidence(
         star.language?.toLowerCase(),
         ...star.topics.map(t => t.toLowerCase()),
         star.description?.toLowerCase() || '',
-      ];
+      ].filter((st): st is string => st !== undefined); // [NOTE]: Filter out undefined
       return terms.some(t => starTerms.some(st => st.includes(t)));
     })
     .slice(0, limit);
