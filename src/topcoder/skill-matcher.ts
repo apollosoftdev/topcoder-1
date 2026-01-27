@@ -1,5 +1,6 @@
 import { TopcoderSkillsAPI } from './skills-api';
 import { TopcoderSkill } from '../utils/cache';
+import { loadSkillsConfig } from '../utils/config';
 
 // [NOTE]: Intermediate result before scoring
 export interface MatchedSkill {
@@ -8,73 +9,11 @@ export interface MatchedSkill {
   rawScore: number; // [NOTE]: Weighted count before normalization
 }
 
-// [!IMPORTANT]: Maps common tech terms to Topcoder skill names
-// Add new aliases here to improve matching accuracy
-const TECH_TO_SKILL_ALIASES: Record<string, string[]> = {
-  'JavaScript': ['javascript', 'js', 'ecmascript', 'es6', 'es2015', 'es2020'],
-  'TypeScript': ['typescript', 'ts'],
-  'Python': ['python', 'python3', 'py'],
-  'Java': ['java', 'jdk', 'jvm'],
-  'C++': ['c++', 'cpp', 'cxx'],
-  'C#': ['c#', 'csharp', 'dotnet', '.net'],
-  'Go': ['go', 'golang'],
-  'Rust': ['rust', 'rustlang'],
-  'Ruby': ['ruby', 'rb'],
-  'PHP': ['php'],
-  'Swift': ['swift'],
-  'Kotlin': ['kotlin', 'kt'],
-  'Scala': ['scala'],
-  'R': ['r', 'rlang'],
-  'React.js': ['react', 'reactjs', 'react.js'],
-  'Vue.js': ['vue', 'vuejs', 'vue.js'],
-  'Angular': ['angular', 'angularjs', 'ng'],
-  'Node.js': ['node', 'nodejs', 'node.js'],
-  'Express': ['express', 'expressjs'],
-  'Django': ['django'],
-  'Flask': ['flask'],
-  'FastAPI': ['fastapi'],
-  'Spring': ['spring', 'spring boot', 'springboot'],
-  'Ruby on Rails': ['rails', 'ruby on rails', 'ror'],
-  'Laravel': ['laravel'],
-  'Next.js': ['next', 'nextjs', 'next.js'],
-  'Nuxt': ['nuxt', 'nuxtjs'],
-  'Svelte': ['svelte', 'sveltejs'],
-  'Docker': ['docker', 'dockerfile', 'container', 'containers'],
-  'Kubernetes': ['kubernetes', 'k8s', 'kubectl'],
-  'AWS': ['aws', 'amazon web services', 'ec2', 's3', 'lambda', 'cloudformation'],
-  'Azure': ['azure', 'microsoft azure'],
-  'Google Cloud': ['gcp', 'google cloud', 'google cloud platform', 'bigquery'],
-  'Terraform': ['terraform', 'hcl', 'infrastructure as code', 'iac'],
-  'PostgreSQL': ['postgresql', 'postgres', 'psql'],
-  'MySQL': ['mysql', 'mariadb'],
-  'MongoDB': ['mongodb', 'mongo', 'mongoose'],
-  'Redis': ['redis'],
-  'Elasticsearch': ['elasticsearch', 'elastic'],
-  'GraphQL': ['graphql', 'apollo', 'hasura'],
-  'REST API Development': ['rest', 'restful', 'rest api', 'api'],
-  'Git': ['git', 'github', 'gitlab', 'version control'],
-  'CI/CD': ['ci', 'cd', 'ci/cd', 'continuous integration', 'continuous deployment', 'github actions', 'jenkins', 'circleci'],
-  'Linux': ['linux', 'ubuntu', 'debian', 'centos', 'unix'],
-  'Machine Learning': ['machine learning', 'ml', 'deep learning', 'neural network', 'ai'],
-  'Data Science': ['data science', 'data analysis', 'pandas', 'numpy', 'jupyter'],
-  'TensorFlow': ['tensorflow', 'tf'],
-  'PyTorch': ['pytorch', 'torch'],
-  'Web Development': ['web development', 'web dev', 'frontend', 'backend', 'fullstack', 'full stack'],
-  'Mobile Development': ['mobile', 'mobile development', 'mobile app'],
-  'iOS Development': ['ios', 'iphone', 'ipad', 'xcode', 'cocoapods'],
-  'Android Development': ['android', 'android studio', 'gradle'],
-  'React Native': ['react native', 'react-native', 'expo'],
-  'Flutter': ['flutter', 'dart'],
-  'Testing': ['testing', 'test', 'unit test', 'integration test', 'e2e', 'jest', 'mocha', 'pytest', 'junit'],
-  'Agile': ['agile', 'scrum', 'kanban', 'sprint'],
-  'HTML': ['html', 'html5', 'xhtml'],
-  'CSS': ['css', 'css3', 'scss', 'sass', 'less', 'tailwind', 'bootstrap'],
-  'SQL': ['sql', 'database', 'query'],
-  'Shell': ['shell', 'bash', 'zsh', 'scripting'],
-  'Webpack': ['webpack'],
-  'Vite': ['vite'],
-  'npm': ['npm', 'yarn', 'pnpm'],
-};
+// [NOTE]: Load tech aliases from config file (config/skills.json)
+function getTechAliases(): Record<string, string[]> {
+  const config = loadSkillsConfig();
+  return config.techAliases;
+}
 
 export class SkillMatcher {
   private skillsApi: TopcoderSkillsAPI;
@@ -85,9 +24,10 @@ export class SkillMatcher {
     this.buildAliasIndex();
   }
 
-  // [NOTE]: Build reverse lookup from aliases to skill names
+  // [NOTE]: Build reverse lookup from aliases to skill names (from config)
   private buildAliasIndex(): void {
-    for (const [skillName, aliases] of Object.entries(TECH_TO_SKILL_ALIASES)) {
+    const techAliases = getTechAliases();
+    for (const [skillName, aliases] of Object.entries(techAliases)) {
       for (const alias of aliases) {
         this.aliasToSkill.set(alias.toLowerCase(), skillName);
       }
