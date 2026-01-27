@@ -19,9 +19,9 @@ interface TokenResponse {
   error_description?: string;
 }
 
-// [!IMPORTANT]: GitHub OAuth endpoints for device flow
-const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+// [!IMPORTANT]: GitHub OAuth endpoints for device flow (configurable via env)
+const GITHUB_DEVICE_CODE_URL = process.env.GITHUB_DEVICE_CODE_URL || 'https://github.com/login/device/code';
+const GITHUB_TOKEN_URL = process.env.GITHUB_TOKEN_URL || 'https://github.com/login/oauth/access_token';
 
 export class GitHubOAuth {
   private clientId: string;
