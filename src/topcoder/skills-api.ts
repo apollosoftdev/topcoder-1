@@ -1,8 +1,10 @@
 import { Cache, TopcoderSkill } from '../utils/cache';
 import chalk from 'chalk';
 
+// [!IMPORTANT]: Topcoder API base URL - uses dev environment
 const TOPCODER_API_BASE = 'https://api.topcoder-dev.com/v5';
 
+// [NOTE]: Raw response from Topcoder API
 export interface TopcoderSkillResponse {
   id: string;
   name: string;
@@ -13,14 +15,16 @@ export interface TopcoderSkillResponse {
 export class TopcoderSkillsAPI {
   private cache: Cache;
   private skills: TopcoderSkill[] = [];
-  private skillsByName: Map<string, TopcoderSkill> = new Map();
-  private skillsById: Map<string, TopcoderSkill> = new Map();
+  private skillsByName: Map<string, TopcoderSkill> = new Map(); // [NOTE]: name -> skill lookup
+  private skillsById: Map<string, TopcoderSkill> = new Map(); // [NOTE]: id -> skill lookup
 
   constructor(cache: Cache) {
     this.cache = cache;
   }
 
+  // [!IMPORTANT]: Must call this before using other methods
   async initialize(): Promise<void> {
+    // [NOTE]: Try cache first (valid for 24 hours)
     const cached = this.cache.getSkills();
     if (cached) {
       this.skills = cached.skills;
@@ -31,6 +35,7 @@ export class TopcoderSkillsAPI {
     await this.fetchSkills();
   }
 
+  // [NOTE]: Fetches all skills from Topcoder API with pagination
   private async fetchSkills(): Promise<void> {
     console.log(chalk.gray('Fetching Topcoder skills list...'));
 
@@ -40,6 +45,7 @@ export class TopcoderSkillsAPI {
       const perPage = 100;
       let hasMore = true;
 
+      // [NOTE]: Paginate through all skills
       while (hasMore) {
         const response = await fetch(
           `${TOPCODER_API_BASE}/skills?page=${page}&perPage=${perPage}`,
@@ -75,17 +81,19 @@ export class TopcoderSkillsAPI {
       }
 
       this.skills = allSkills;
-      this.cache.setSkills(allSkills);
+      this.cache.setSkills(allSkills); // [NOTE]: Cache for 24 hours
       this.buildIndexes();
 
       console.log(chalk.gray(`Loaded ${this.skills.length} Topcoder skills`));
     } catch (error) {
+      // [NOTE]: Use fallback if API fails
       console.error(chalk.yellow('Warning: Could not fetch Topcoder skills. Using fallback list.'));
       this.skills = this.getFallbackSkills();
       this.buildIndexes();
     }
   }
 
+  // [NOTE]: Build lookup indexes for fast access
   private buildIndexes(): void {
     this.skillsByName = new Map();
     this.skillsById = new Map();
@@ -96,6 +104,7 @@ export class TopcoderSkillsAPI {
     }
   }
 
+  // [NOTE]: Case-insensitive lookup by name
   getSkillByName(name: string): TopcoderSkill | undefined {
     return this.skillsByName.get(name.toLowerCase());
   }
@@ -104,6 +113,7 @@ export class TopcoderSkillsAPI {
     return this.skillsById.get(id);
   }
 
+  // [NOTE]: Fuzzy search in skill names and categories
   searchSkills(query: string): TopcoderSkill[] {
     const queryLower = query.toLowerCase();
     return this.skills.filter(
@@ -117,6 +127,8 @@ export class TopcoderSkillsAPI {
     return [...this.skills];
   }
 
+  // [!IMPORTANT]: Fallback skills if Topcoder API is unavailable
+  // These should match actual Topcoder skill IDs when possible
   private getFallbackSkills(): TopcoderSkill[] {
     return [
       { id: '1', name: 'JavaScript', category: 'Programming Languages' },
