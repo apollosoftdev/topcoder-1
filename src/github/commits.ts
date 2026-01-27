@@ -1,6 +1,5 @@
 import { GitHubClient } from './client';
 import { CommitData } from '../utils/cache';
-import chalk from 'chalk';
 
 export interface CommitAnalyzerOptions {
   maxCommitsPerRepo: number;

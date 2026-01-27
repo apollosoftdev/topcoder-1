@@ -122,7 +122,7 @@ export class GitHubClient {
           count++;
         }
       }
-    } catch (error) {
+    } catch {
       if (this.verbose) {
         console.log(chalk.gray(`  Could not fetch commits for ${owner}/${repo}`));
       }
@@ -148,7 +148,7 @@ export class GitHubClient {
           count++;
         }
       }
-    } catch (error) {
+    } catch {
       if (this.verbose) {
         console.log(chalk.gray(`  Could not fetch PRs for ${owner}/${repo}`));
       }
@@ -193,7 +193,7 @@ export class GitHubClient {
           count++;
         }
       }
-    } catch (error) {
+    } catch {
       if (this.verbose) {
         console.log(chalk.gray('  Could not fetch starred repos'));
       }
@@ -238,7 +238,7 @@ export class GitHubClient {
           count++;
         }
       }
-    } catch (error) {
+    } catch {
       if (this.verbose) {
         console.log(chalk.gray('  Could not fetch gists'));
       }
