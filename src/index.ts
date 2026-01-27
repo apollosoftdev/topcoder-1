@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// [!IMPORTANT]: Load environment variables from .env file first
+import 'dotenv/config';
+
 // [!IMPORTANT]: Main CLI entry point - run with `npx ts-node src/index.ts`
 
 import { Command } from 'commander';
