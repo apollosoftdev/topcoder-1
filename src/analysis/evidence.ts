@@ -44,7 +44,7 @@ function collectRepoEvidence(
         ...Object.keys(repo.languages).map(l => l.toLowerCase()),
         ...repo.topics.map(t => t.toLowerCase()),
         repo.description?.toLowerCase() || '',
-      ];
+      ].filter((rt): rt is string => rt !== undefined); // [NOTE]: Filter out undefined
       return terms.some(t => repoTerms.some(rt => rt.includes(t)));
     })
     .sort((a, b) => b.stars - a.stars);

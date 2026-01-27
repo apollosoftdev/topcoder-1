@@ -2,14 +2,16 @@ import { CollectedGitHubData, TopcoderSkill } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
 
+// [!IMPORTANT]: Final output structure for each skill recommendation
 export interface ScoredSkill {
   skill: TopcoderSkill;
-  score: number;
+  score: number; // [NOTE]: 0-100 confidence score
   components: ScoreComponents;
   evidence: Evidence[];
   explanation: string;
 }
 
+// [NOTE]: Breakdown of how the score was calculated
 export interface ScoreComponents {
   languageScore: number;
   commitScore: number;
@@ -18,6 +20,7 @@ export interface ScoreComponents {
   recencyScore: number;
 }
 
+// [NOTE]: Configurable weights for scoring algorithm
 export interface ScoringConfig {
   weights: {
     language: number;
@@ -29,13 +32,14 @@ export interface ScoringConfig {
   maxScore: number;
 }
 
+// [!IMPORTANT]: Default weights - language usage is most important
 const DEFAULT_CONFIG: ScoringConfig = {
   weights: {
-    language: 0.35,
-    commits: 0.25,
-    prs: 0.15,
-    projectQuality: 0.15,
-    recency: 0.10,
+    language: 0.35,    // [NOTE]: Primary language usage weight
+    commits: 0.25,     // [NOTE]: Commit frequency weight
+    prs: 0.15,         // [NOTE]: PR contribution weight
+    projectQuality: 0.15, // [NOTE]: Stars/forks weight
+    recency: 0.10,     // [NOTE]: Recent activity weight
   },
   maxScore: 100,
 };
@@ -47,6 +51,7 @@ export class ScoringEngine {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
+  // [!IMPORTANT]: Main scoring function - processes all matched skills
   scoreSkills(
     matchedSkills: MatchedSkill[],
     data: CollectedGitHubData
@@ -56,6 +61,7 @@ export class ScoringEngine {
     return matchedSkills.map(match => this.scoreSkill(match, data, maxRawScore));
   }
 
+  // [NOTE]: Scores individual skill based on multiple factors
   private scoreSkill(
     match: MatchedSkill,
     data: CollectedGitHubData,
@@ -64,6 +70,7 @@ export class ScoringEngine {
     const skillTerms = match.matchedTerms.map(t => t.toLowerCase());
     const skillName = match.skill.name.toLowerCase();
 
+    // [NOTE]: Calculate each component score (0-100)
     const languageScore = this.calculateLanguageScore(
       skillName,
       skillTerms,
@@ -85,6 +92,7 @@ export class ScoringEngine {
       recencyScore,
     };
 
+    // [!IMPORTANT]: Weighted sum of all components
     const { weights } = this.config;
     const rawTotal =
       languageScore * weights.language +
@@ -106,6 +114,7 @@ export class ScoringEngine {
     };
   }
 
+  // [NOTE]: Score based on language bytes in repos
   private calculateLanguageScore(
     skillName: string,
     terms: string[],
@@ -126,6 +135,7 @@ export class ScoringEngine {
     return Math.min(normalizedScore + languageBonus, 100);
   }
 
+  // [NOTE]: Score based on commit messages and files changed
   private calculateCommitScore(terms: string[], data: CollectedGitHubData): number {
     if (data.commits.length === 0) return 0;
 
@@ -148,6 +158,7 @@ export class ScoringEngine {
     return Math.min(percentage + countBonus, 100);
   }
 
+  // [NOTE]: Score based on PR titles/descriptions and merge rate
   private calculatePRScore(terms: string[], data: CollectedGitHubData): number {
     if (data.pullRequests.length === 0) return 0;
 
@@ -171,6 +182,7 @@ export class ScoringEngine {
     return Math.min(relevanceScore + mergeRate, 100);
   }
 
+  // [NOTE]: Score based on stars and forks (project popularity)
   private calculateProjectQualityScore(terms: string[], data: CollectedGitHubData): number {
     let totalStars = 0;
     let totalForks = 0;
@@ -192,6 +204,7 @@ export class ScoringEngine {
 
     if (relevantRepos === 0) return 0;
 
+    // [NOTE]: Log scale to prevent huge projects from dominating
     const starScore = Math.min(Math.log10(totalStars + 1) * 20, 50);
     const forkScore = Math.min(Math.log10(totalForks + 1) * 15, 30);
     const repoCountScore = Math.min(relevantRepos * 2, 20);
@@ -199,6 +212,7 @@ export class ScoringEngine {
     return Math.min(starScore + forkScore + repoCountScore, 100);
   }
 
+  // [NOTE]: Score based on recent activity (last 6-12 months)
   private calculateRecencyScore(terms: string[], data: CollectedGitHubData): number {
     const now = Date.now();
     const oneYearAgo = now - 365 * 24 * 60 * 60 * 1000;
@@ -238,6 +252,7 @@ export class ScoringEngine {
     return Math.min(recentScore + veryRecentScore, 100);
   }
 
+  // [NOTE]: Generate human-readable explanation for the score
   private generateExplanation(
     skillName: string,
     components: ScoreComponents,
@@ -275,9 +290,10 @@ export class ScoringEngine {
   }
 }
 
+// [NOTE]: Filter and sort skills by score, with minimum threshold
 export function getTopScoredSkills(skills: ScoredSkill[], limit: number = 20): ScoredSkill[] {
   return skills
-    .filter(s => s.score >= 10)
+    .filter(s => s.score >= 10) // [NOTE]: Minimum 10 score threshold
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// [!IMPORTANT]: Main CLI entry point - run with `npx ts-node src/index.ts`
+
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { GitHubOAuth, getClientCredentials } from './auth/github-oauth';
@@ -12,6 +14,7 @@ import { Cache } from './utils/cache';
 import { ProgressReporter } from './output/progress';
 import { printReport } from './output/report';
 
+// [NOTE]: CLI options parsed from command line flags
 interface CLIOptions {
   maxRepos: number;
   maxCommitsPerRepo: number;
@@ -24,6 +27,7 @@ interface CLIOptions {
 
 const program = new Command();
 
+// [!IMPORTANT]: CLI configuration and available commands
 program
   .name('tc-skills')
   .description('Import your GitHub skills into Topcoder')
@@ -44,6 +48,7 @@ program
     }
   });
 
+// [NOTE]: Utility command to clear all cached data
 program
   .command('clear-cache')
   .description('Clear all cached data including saved tokens')
@@ -53,6 +58,7 @@ program
     console.log(chalk.green('Cache cleared successfully.'));
   });
 
+// [NOTE]: Utility command to check current status
 program
   .command('status')
   .description('Show current authentication and cache status')
@@ -83,6 +89,7 @@ program
     console.log('');
   });
 
+// [NOTE]: Parse string options to proper types
 function parseOptions(opts: Record<string, string | boolean>): CLIOptions {
   return {
     maxRepos: parseInt(opts.maxRepos as string, 10) || 100,
@@ -95,24 +102,27 @@ function parseOptions(opts: Record<string, string | boolean>): CLIOptions {
   };
 }
 
+// [!IMPORTANT]: Main execution flow
 async function run(options: CLIOptions): Promise<void> {
   const progress = new ProgressReporter({
     verbose: options.verbose,
-    silent: options.output === 'json',
+    silent: options.output === 'json', // [NOTE]: Suppress spinner for JSON output
   });
 
   if (options.output !== 'json') {
     console.log(chalk.bold.cyan('\n🔍 Topcoder GitHub Skills Import CLI\n'));
   }
 
+  // [NOTE]: Step 1 - Initialize cache and authenticate
   const cache = new Cache();
-  const { clientId } = getClientCredentials();
+  const { clientId } = getClientCredentials(); // [!IMPORTANT]: Requires GITHUB_CLIENT_ID env var
   const oauth = new GitHubOAuth(clientId, cache);
 
   progress.start('Authenticating with GitHub...');
   const token = await oauth.authenticate();
   progress.succeed('Authenticated with GitHub');
 
+  // [NOTE]: Step 2 - Create GitHub client and scraper
   const githubClient = new GitHubClient({
     token,
     verbose: options.verbose,
@@ -129,28 +139,34 @@ async function run(options: CLIOptions): Promise<void> {
     verbose: options.verbose,
   }, progress);
 
+  // [NOTE]: Step 3 - Scrape GitHub data
   const { data: githubData, stats } = await scraper.scrape();
 
+  // [NOTE]: Step 4 - Fetch Topcoder skills
   progress.start('Fetching Topcoder skills...');
   const skillsApi = new TopcoderSkillsAPI(cache);
   await skillsApi.initialize();
   progress.succeed(`Loaded ${skillsApi.getAllSkills().length} Topcoder skills`);
 
+  // [NOTE]: Step 5 - Extract technologies from GitHub data
   progress.start('Analyzing technologies...');
   const techCounts = extractAllTechnologies(githubData);
   progress.succeed(`Found ${techCounts.size} unique technologies`);
 
+  // [NOTE]: Step 6 - Match technologies to Topcoder skills
   progress.start('Matching skills...');
   const skillMatcher = new SkillMatcher(skillsApi);
   const matchedSkills = skillMatcher.getTopMatches(techCounts, 30);
   progress.succeed(`Matched ${matchedSkills.length} skills`);
 
+  // [NOTE]: Step 7 - Score and rank skills
   progress.start('Scoring skills...');
   const scoringEngine = new ScoringEngine();
   const scoredSkills = scoringEngine.scoreSkills(matchedSkills, githubData);
   const topSkills = getTopScoredSkills(scoredSkills, 20);
   progress.succeed(`Scored ${topSkills.length} skills`);
 
+  // [NOTE]: Step 8 - Generate and print report
   printReport(topSkills, stats, {
     format: options.output,
     verbose: options.verbose,
