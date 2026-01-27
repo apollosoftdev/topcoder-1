@@ -17,9 +17,11 @@ function getTechAliases(): Record<string, string[]> {
 
 export class SkillMatcher {
   private skillsApi: TopcoderSkillsAPI;
+  private aliasToSkill: Map<string, string> = new Map(); // [NOTE]: alias -> skill name lookup
 
   constructor(skillsApi: TopcoderSkillsAPI) {
     this.skillsApi = skillsApi;
+    this.buildAliasIndex();
   }
 
   // [NOTE]: Build reverse lookup from aliases to skill names (from config)
@@ -129,5 +131,12 @@ export class SkillMatcher {
   // [NOTE]: Escape special regex characters
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // [NOTE]: Expand short terms to full names (e.g., "js" -> "javascript")
+  private expandTerm(term: string): string {
+    const config = loadSkillsConfig();
+    const shortTermExpansions = config.shortTermExpansions;
+    return shortTermExpansions[term.toLowerCase()] || term;
   }
 }
