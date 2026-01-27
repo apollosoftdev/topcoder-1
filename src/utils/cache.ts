@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+// [NOTE]: Main cache data structure stored in ~/.tc-skills-cli/
 export interface CacheData {
   token?: string;
   tokenExpiry?: number;
@@ -9,12 +10,14 @@ export interface CacheData {
   skills?: CachedSkills;
 }
 
+// [NOTE]: Tracks scraping progress for resume capability
 export interface ProgressState {
   processedRepos: string[];
   collectedData: CollectedGitHubData;
   lastUpdated: number;
 }
 
+// [!IMPORTANT]: Central data structure holding all GitHub scraped data
 export interface CollectedGitHubData {
   repos: RepoData[];
   commits: CommitData[];
@@ -24,13 +27,14 @@ export interface CollectedGitHubData {
   profile?: ProfileData;
 }
 
+// [NOTE]: Repository metadata from GitHub API
 export interface RepoData {
   name: string;
-  fullName: string;
+  fullName: string; // [NOTE]: format is "owner/repo"
   url: string;
   description: string | null;
-  language: string | null;
-  languages: Record<string, number>;
+  language: string | null; // [NOTE]: primary language detected by GitHub
+  languages: Record<string, number>; // [NOTE]: language -> bytes mapping
   topics: string[];
   stars: number;
   forks: number;
@@ -40,6 +44,7 @@ export interface RepoData {
   readme?: string;
 }
 
+// [NOTE]: Commit data for technology detection
 export interface CommitData {
   repo: string;
   sha: string;
@@ -50,6 +55,7 @@ export interface CommitData {
   deletions: number;
 }
 
+// [NOTE]: Pull request data for contribution analysis
 export interface PullRequestData {
   repo: string;
   number: number;
@@ -62,6 +68,7 @@ export interface PullRequestData {
   isAuthor: boolean;
 }
 
+// [NOTE]: Aggregated language statistics across all repos
 export interface LanguageStats {
   [language: string]: {
     bytes: number;
@@ -70,6 +77,7 @@ export interface LanguageStats {
   };
 }
 
+// [NOTE]: Starred repos indicate user interests
 export interface StarredRepo {
   name: string;
   fullName: string;
@@ -79,6 +87,7 @@ export interface StarredRepo {
   topics: string[];
 }
 
+// [NOTE]: User profile metadata
 export interface ProfileData {
   bio: string | null;
   company: string | null;
@@ -87,20 +96,23 @@ export interface ProfileData {
   organizations: string[];
 }
 
+// [NOTE]: Cached Topcoder skills with fetch timestamp
 export interface CachedSkills {
   skills: TopcoderSkill[];
   fetchedAt: number;
 }
 
+// [!IMPORTANT]: This is the Topcoder skill structure - id is required for API matching
 export interface TopcoderSkill {
   id: string;
   name: string;
   category?: string;
 }
 
+// [!IMPORTANT]: Cache stored in user home directory for persistence
 const CACHE_DIR = path.join(os.homedir(), '.tc-skills-cli');
 const CACHE_FILE = path.join(CACHE_DIR, 'cache.json');
-const TOKEN_FILE = path.join(CACHE_DIR, 'token.json');
+const TOKEN_FILE = path.join(CACHE_DIR, 'token.json'); // [NOTE]: Token stored separately with strict permissions
 
 export class Cache {
   private data: CacheData = {};
@@ -110,12 +122,14 @@ export class Cache {
     this.load();
   }
 
+  // [NOTE]: Creates cache directory with restricted permissions (700)
   private ensureCacheDir(): void {
     if (!fs.existsSync(CACHE_DIR)) {
       fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
     }
   }
 
+  // [NOTE]: Loads cache and token from disk on initialization
   private load(): void {
     try {
       if (fs.existsSync(CACHE_FILE)) {
@@ -133,11 +147,13 @@ export class Cache {
     }
   }
 
+  // [NOTE]: Saves cache without token (token saved separately)
   private save(): void {
     const { token, tokenExpiry, ...cacheData } = this.data;
     fs.writeFileSync(CACHE_FILE, JSON.stringify(cacheData, null, 2), { mode: 0o600 });
   }
 
+  // [!IMPORTANT]: Token file has strict 600 permissions for security
   private saveToken(): void {
     if (this.data.token) {
       fs.writeFileSync(
@@ -148,6 +164,7 @@ export class Cache {
     }
   }
 
+  // [NOTE]: Returns token if not expired
   getToken(): string | undefined {
     if (this.data.token && this.data.tokenExpiry) {
       if (Date.now() < this.data.tokenExpiry) {
@@ -171,6 +188,7 @@ export class Cache {
     }
   }
 
+  // [NOTE]: Used for --resume flag functionality
   getProgress(): ProgressState | undefined {
     return this.data.progress;
   }
@@ -185,6 +203,7 @@ export class Cache {
     this.save();
   }
 
+  // [NOTE]: Skills cached for 24 hours to reduce API calls
   getSkills(): CachedSkills | undefined {
     if (this.data.skills) {
       const oneDay = 24 * 60 * 60 * 1000;
@@ -203,6 +222,7 @@ export class Cache {
     this.save();
   }
 
+  // [!IMPORTANT]: Deletes all cached data including tokens
   clearAll(): void {
     this.data = {};
     if (fs.existsSync(CACHE_FILE)) {
@@ -227,6 +247,7 @@ export class Cache {
   }
 }
 
+// [NOTE]: Factory function for initializing empty data structure
 export function createEmptyCollectedData(): CollectedGitHubData {
   return {
     repos: [],
