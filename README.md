@@ -290,8 +290,33 @@ npm run lint
 # Lint with auto-fix
 npm run lint:fix
 
+# Run unit tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
 # Build for production
 npm run build
+```
+
+## Testing
+
+The project includes comprehensive unit tests for core modules:
+
+| Module | Tests | Description |
+|--------|-------|-------------|
+| `config.test.ts` | 15 | Configuration loading, caching, and helper functions |
+| `scoring.test.ts` | 11 | Scoring engine, score bounds, and filtering |
+| `evidence.test.ts` | 13 | Evidence collection and formatting |
+| `skill-matcher.test.ts` | 13 | Skill matching, term expansion, and aggregation |
+
+Run all tests:
+```bash
+npm test
 ```
 
 ## License

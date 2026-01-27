@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-typecheck:
-    name: Lint & Typecheck
+  lint-typecheck-test:
+    name: Lint, Typecheck & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -29,3 +29,6 @@ jobs:
 
       - name: Run TypeScript typecheck
         run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test
