@@ -170,7 +170,10 @@ export class Cache {
       if (Date.now() < this.data.tokenExpiry) {
         return this.data.token;
       }
+      // [NOTE]: Token has expired, return undefined to trigger re-auth
+      return undefined;
     }
+    // [NOTE]: No expiry set (GitHub device tokens don't expire)
     return this.data.token;
   }
 
