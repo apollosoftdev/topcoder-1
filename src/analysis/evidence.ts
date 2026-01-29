@@ -1,29 +1,6 @@
 import { CollectedGitHubData } from '../utils/cache';
 import { getEvidenceConfig, areTermsAliases } from '../utils/config';
-
-// [NOTE]: Check if a term appears as a whole word in text (prevents "java" matching in "javascript")
-function containsWholeWord(text: string, word: string): boolean {
-  const wordLower = word.toLowerCase();
-  const textLower = text.toLowerCase();
-
-  const wordBoundaryChars = /[^a-z0-9]/i;
-  let index = 0;
-
-  while ((index = textLower.indexOf(wordLower, index)) !== -1) {
-    const charBefore = index > 0 ? textLower[index - 1] : ' ';
-    const charAfter = index + wordLower.length < textLower.length ? textLower[index + wordLower.length] : ' ';
-
-    const boundaryBefore = wordBoundaryChars.test(charBefore);
-    const boundaryAfter = wordBoundaryChars.test(charAfter);
-
-    if (boundaryBefore && boundaryAfter) {
-      return true;
-    }
-    index++;
-  }
-
-  return false;
-}
+import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Check if two terms match (exact, normalized, or aliases) - uses config/constants.json
 function termsMatch(term1: string, term2: string): boolean {
@@ -116,7 +93,7 @@ function collectPREvidence(
     .filter(pr => {
       const text = `${pr.title} ${pr.body || ''}`.toLowerCase();
       // Use whole word matching to prevent "java" matching "javascript"
-      return terms.some(t => containsWholeWord(text, t));
+      return terms.some(t => isWholeWordMatch(text.toLowerCase(), t.toLowerCase()));
     })
     .filter(pr => pr.merged)
     .slice(0, limit);
@@ -145,7 +122,7 @@ function collectCommitEvidence(
   for (const commit of data.commits) {
     const messageLower = commit.message.toLowerCase();
     // Use whole word matching to prevent "java" matching "javascript"
-    if (terms.some(t => containsWholeWord(messageLower, t))) {
+    if (terms.some(t => isWholeWordMatch(messageLower, t.toLowerCase()))) {
       const count = repoCommitCounts.get(commit.repo) || 0;
       repoCommitCounts.set(commit.repo, count + 1);
     }

@@ -2,6 +2,7 @@ import { CollectedGitHubData, TopcoderSkill, RepoData } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
 import { loadSkillsConfig, getFileExtensions, getExplanationThresholds, areTermsAliases } from '../utils/config';
+import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Helper to extract searchable terms from a repo
 function getRepoTerms(repo: RepoData): string[] {
@@ -24,32 +25,6 @@ function termsMatch(term1: string, term2: string): boolean {
 function termsMatchRepo(skillTerms: string[], repoTerms: string[]): boolean {
   return skillTerms.some(t => repoTerms.some(rt => termsMatch(t, rt)));
 }
-
-// [NOTE]: Check if a term appears as a whole word in text (prevents "java" matching in "javascript")
-function containsWholeWord(text: string, word: string): boolean {
-  const wordLower = word.toLowerCase();
-  const textLower = text.toLowerCase();
-
-  // For very short words (<=2 chars), require exact word boundaries
-  const wordBoundaryChars = /[^a-z0-9]/i;
-  let index = 0;
-
-  while ((index = textLower.indexOf(wordLower, index)) !== -1) {
-    const charBefore = index > 0 ? textLower[index - 1] : ' ';
-    const charAfter = index + wordLower.length < textLower.length ? textLower[index + wordLower.length] : ' ';
-
-    const boundaryBefore = wordBoundaryChars.test(charBefore);
-    const boundaryAfter = wordBoundaryChars.test(charAfter);
-
-    if (boundaryBefore && boundaryAfter) {
-      return true;
-    }
-    index++;
-  }
-
-  return false;
-}
-
 
 // [!IMPORTANT]: Final output structure for each skill recommendation
 export interface ScoredSkill {
@@ -188,7 +163,7 @@ export class ScoringEngine {
         return true;
       }
       // [NOTE]: Check if term appears as whole word in filename (prevents "java" in "javascript-utils.ts")
-      if (containsWholeWord(fileLower, term)) {
+      if (isWholeWordMatch(fileLower, term)) {
         return true;
       }
     }
@@ -261,7 +236,7 @@ export class ScoringEngine {
       const hasMatchingFile = filesLower.some(file => this.fileMatchesSkill(file, terms));
 
       // [NOTE]: Check commit message - use whole word matching to prevent "java" matching "javascript"
-      const hasMatchingMessage = terms.some(t => containsWholeWord(messageLower, t));
+      const hasMatchingMessage = terms.some(t => isWholeWordMatch(messageLower, t));
 
       if (hasMatchingFile) {
         relevantCommits++;
@@ -292,7 +267,7 @@ export class ScoringEngine {
       const textLower = `${pr.title} ${pr.body || ''}`.toLowerCase();
 
       // [NOTE]: Check PR content for skill terms - use whole word matching
-      const hasMatchingContent = terms.some(t => containsWholeWord(textLower, t));
+      const hasMatchingContent = terms.some(t => isWholeWordMatch(textLower, t));
 
       if (hasMatchingContent) {
         relevantPRs++;
