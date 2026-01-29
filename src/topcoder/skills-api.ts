@@ -1,4 +1,5 @@
 import { Cache, TopcoderSkill } from '../utils/cache';
+import { isWholeWordMatch } from '../utils/string-utils';
 import chalk from 'chalk';
 
 // [!IMPORTANT]: Topcoder API base URL - configurable via environment
@@ -262,24 +263,19 @@ export class TopcoderSkillsAPI {
   }
 
   // [NOTE]: Find skills mentioned in text (uses cached skill names)
+  // Uses safe word boundary check to prevent ReDoS attacks
   findSkillsInText(text: string): string[] {
     const textLower = text.toLowerCase();
     const foundSkills: string[] = [];
 
     for (const skill of this.skillCache.values()) {
       const skillNameLower = skill.name.toLowerCase();
-      // Check for whole word match to avoid partial matches
-      const regex = new RegExp(`\\b${this.escapeRegex(skillNameLower)}\\b`, 'i');
-      if (regex.test(textLower)) {
+      // Use safe word boundary check instead of dynamic RegExp to prevent ReDoS
+      if (isWholeWordMatch(textLower, skillNameLower)) {
         foundSkills.push(skill.name);
       }
     }
 
     return foundSkills;
-  }
-
-  // [NOTE]: Escape special regex characters
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }

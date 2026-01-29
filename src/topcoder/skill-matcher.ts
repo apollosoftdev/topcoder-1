@@ -1,6 +1,7 @@
 import { TopcoderSkillsAPI } from './skills-api';
 import { TopcoderSkill } from '../utils/cache';
 import { loadSkillsConfig } from '../utils/config';
+import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Intermediate result before scoring
 export interface MatchedSkill {
@@ -90,7 +91,7 @@ export class SkillMatcher {
 
     // [NOTE]: Check if query appears as a whole word in skill name
     // Using string-based word boundary check instead of dynamic RegExp to avoid ReDoS
-    if (this.isWholeWordMatch(skillLower, queryLower)) return true;
+    if (isWholeWordMatch(skillLower, queryLower)) return true;
 
     // [NOTE]: Check if skill name contains query (for compound skills)
     if (skillLower.includes(queryLower) && queryLower.length >= 3) {
@@ -104,27 +105,6 @@ export class SkillMatcher {
     const normalizedSkill = skillLower.replace(/[.\s-]/g, '');
     if (normalizedSkill === normalizedQuery) return true;
     if (normalizedSkill.startsWith(normalizedQuery)) return true;
-
-    return false;
-  }
-
-  // [NOTE]: Safe word boundary check without dynamic RegExp (ReDoS-safe)
-  private isWholeWordMatch(text: string, word: string): boolean {
-    const wordBoundaryChars = /[^a-z0-9]/i;
-    let index = 0;
-
-    while ((index = text.indexOf(word, index)) !== -1) {
-      const charBefore = index > 0 ? text[index - 1] : ' ';
-      const charAfter = index + word.length < text.length ? text[index + word.length] : ' ';
-
-      const boundaryBefore = wordBoundaryChars.test(charBefore);
-      const boundaryAfter = wordBoundaryChars.test(charAfter);
-
-      if (boundaryBefore && boundaryAfter) {
-        return true;
-      }
-      index++;
-    }
 
     return false;
   }

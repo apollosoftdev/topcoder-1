@@ -1,5 +1,6 @@
 import { GitHubClient } from './client';
 import { PullRequestData } from '../utils/cache';
+import { isWholeWordMatch } from '../utils/string-utils';
 
 export interface PRAnalyzerOptions {
   maxPRsPerRepo: number;
@@ -58,6 +59,7 @@ export class PRAnalyzer {
 
 // [NOTE]: Extract technologies from PR using API skill names
 // skillNames parameter comes from TopcoderSkillsAPI.getAllSkillNames()
+// Uses safe word boundary check to prevent ReDoS attacks
 export function extractTechnologiesFromPR(
   title: string,
   body: string | null,
@@ -72,11 +74,8 @@ export function extractTechnologiesFromPR(
 
   for (const skillName of skillNames) {
     const skillLower = skillName.toLowerCase();
-    // Check for whole word match using word boundaries
-    // Escape special regex characters in skill name
-    const escaped = skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    if (regex.test(text)) {
+    // Use safe word boundary check instead of dynamic RegExp to prevent ReDoS
+    if (isWholeWordMatch(text, skillLower)) {
       foundSkills.push(skillName);
     }
   }

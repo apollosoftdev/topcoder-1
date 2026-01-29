@@ -14,6 +14,7 @@ import {
 } from '../utils/cache';
 import { ProgressReporter } from '../output/progress';
 import { getSpecialFiles } from '../utils/config';
+import { isWholeWordMatch } from '../utils/string-utils';
 import chalk from 'chalk';
 
 export interface ScraperOptions {
@@ -232,16 +233,15 @@ function extractTechnologiesFromRootFiles(rootFiles: string[]): string[] {
 
 
 // [NOTE]: Find skills in text using API skill names (whole word matching)
+// Uses safe word boundary check to prevent ReDoS attacks
 function findSkillsInText(text: string, skillNames: string[]): string[] {
   const textLower = text.toLowerCase();
   const foundSkills: string[] = [];
 
   for (const skillName of skillNames) {
     const skillLower = skillName.toLowerCase();
-    // Escape special regex characters and check for whole word match
-    const escaped = skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    if (regex.test(textLower)) {
+    // Use safe word boundary check instead of dynamic RegExp to prevent ReDoS
+    if (isWholeWordMatch(textLower, skillLower)) {
       foundSkills.push(skillName);
     }
   }
