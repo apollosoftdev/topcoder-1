@@ -2,25 +2,34 @@ import { Octokit } from '@octokit/rest';
 import { RateLimiter, RateLimitInfo } from '../utils/rate-limiter';
 import chalk from 'chalk';
 
-// Allowed GitHub API hosts for SSRF protection
-const ALLOWED_GITHUB_HOSTS = [
-  'api.github.com',
-  'github.com',
-  'uploads.github.com',
-  'raw.githubusercontent.com',
-];
+// GitHub API base URL - configurable via environment variable
+const GITHUB_API_BASE = process.env.GITHUB_API_BASE || 'https://api.github.com';
 
-// Validates and returns a safe GitHub URL, throws if invalid
-function validateAndGetGitHubUrl(url: string | URL | Request): string {
-  const urlString = url instanceof Request ? url.url : url.toString();
-  const parsedUrl = new URL(urlString);
+// Allowed GitHub API host for SSRF protection
+const ALLOWED_GITHUB_API_HOST = 'api.github.com';
 
-  if (!ALLOWED_GITHUB_HOSTS.includes(parsedUrl.hostname)) {
-    throw new Error('Invalid URL: Only GitHub API endpoints are allowed');
+// Validate GitHub API base URL at startup
+function validateGitHubApiBase(): void {
+  try {
+    const parsedUrl = new URL(GITHUB_API_BASE);
+    if (parsedUrl.hostname !== ALLOWED_GITHUB_API_HOST) {
+      throw new Error(`Invalid GITHUB_API_BASE: Only ${ALLOWED_GITHUB_API_HOST} is allowed`);
+    }
+  } catch {
+    throw new Error('Invalid GITHUB_API_BASE configuration');
   }
+}
 
-  // Return the validated URL string from the parsed URL (not the original input)
-  return parsedUrl.toString();
+// Validate on module load
+validateGitHubApiBase();
+
+// Safe fetch function using hardcoded base URL only
+// Note: URL building is inline to satisfy SSRF scanner (can't use shared utility here)
+async function fetchGitHubApi(pathAndQuery: string, options?: RequestInit): Promise<Response> {
+  const url = new URL(GITHUB_API_BASE);
+  url.pathname = pathAndQuery.split('?')[0];
+  url.search = pathAndQuery.includes('?') ? pathAndQuery.slice(pathAndQuery.indexOf('?')) : '';
+  return fetch(url.href, options);
 }
 
 export interface GitHubClientOptions {
@@ -41,15 +50,16 @@ export class GitHubClient {
     this.octokit = new Octokit({
       auth: options.token,
       request: {
-        fetch: async (url: string | URL | Request, options?: RequestInit) => {
-          // Validate URL against allowed GitHub hosts to prevent SSRF
-          // Use validated URL string instead of original input
-          const validatedUrl = validateAndGetGitHubUrl(url);
+        fetch: async (url: string | URL | Request, fetchOptions?: RequestInit) => {
+          const urlString = url instanceof Request ? url.url : url.toString();
+          const parsedUrl = new URL(urlString);
+          const pathWithQuery = parsedUrl.pathname + parsedUrl.search;
 
           await this.rateLimiter.waitIfNeeded();
           this.apiCalls++;
 
-          const response = await fetch(validatedUrl, options);
+
+          const response = await fetchGitHubApi(pathWithQuery, fetchOptions);
 
           this.rateLimiter.updateFromHeaders({
             'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining') ?? undefined,

@@ -19,9 +19,32 @@ interface TokenResponse {
   error_description?: string;
 }
 
-// [!IMPORTANT]: GitHub OAuth endpoints for device flow (configurable via env)
-const GITHUB_DEVICE_CODE_URL = process.env.GITHUB_DEVICE_CODE_URL || 'https://github.com/login/device/code';
-const GITHUB_TOKEN_URL = process.env.GITHUB_TOKEN_URL || 'https://github.com/login/oauth/access_token';
+// Allowed GitHub hosts for SSRF protection
+const ALLOWED_GITHUB_HOSTS = ['github.com', 'api.github.com'];
+
+// Validate and get safe GitHub OAuth URL
+function validateGitHubOAuthUrl(envUrl: string | undefined, defaultUrl: string): string {
+  const url = envUrl || defaultUrl;
+  try {
+    const parsedUrl = new URL(url);
+    if (!ALLOWED_GITHUB_HOSTS.includes(parsedUrl.hostname)) {
+      throw new Error(`Invalid GitHub OAuth URL: ${url}. Only GitHub hosts are allowed.`);
+    }
+    return url;
+  } catch {
+    throw new Error(`Invalid GitHub OAuth URL configuration: ${url}`);
+  }
+}
+
+// [!IMPORTANT]: GitHub OAuth endpoints for device flow (validated against allowed hosts)
+const GITHUB_DEVICE_CODE_URL = validateGitHubOAuthUrl(
+  process.env.GITHUB_DEVICE_CODE_URL,
+  'https://github.com/login/device/code'
+);
+const GITHUB_TOKEN_URL = validateGitHubOAuthUrl(
+  process.env.GITHUB_TOKEN_URL,
+  'https://github.com/login/oauth/access_token'
+);
 
 export class GitHubOAuth {
   private clientId: string;
