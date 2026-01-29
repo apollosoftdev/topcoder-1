@@ -43,7 +43,7 @@ Create a `.env` file in the project root:
 
 ```env
 GITHUB_CLIENT_ID=your_github_oauth_app_client_id
-TOPCODER_API_BASE=https://api.topcoder.com/v5
+TOPCODER_API_BASE=https://api.topcoder-dev.com/v5
 ```
 
 | Variable | Required | Description |
@@ -84,30 +84,56 @@ All scoring weights and thresholds are configurable in `config/constants.json`:
 
 ## Usage
 
-### Basic Usage
+### Running the CLI
 
+**Option 1: Direct execution (no installation required)**
 ```bash
-# Run the CLI
+# Using npm start
 npm start
 
 # Or with ts-node directly
 npx ts-node src/index.ts
+
+# With options
+npm start -- --verbose --max-repos 50
+```
+
+**Option 2: Install globally for `tc-skills` command**
+```bash
+# Build and link
+npm run build
+npm link
+
+# Now you can use tc-skills anywhere
+tc-skills --help
+tc-skills --verbose
+```
+
+**Option 3: Global install**
+```bash
+npm install -g .
+tc-skills --help
 ```
 
 ### CLI Options
 
-```bash
-tc-skills [options]
+```
+Usage: tc-skills [options] [command]
 
 Options:
-  --max-repos <number>           Maximum repositories to analyze (default: 100)
-  --max-commits-per-repo <n>     Maximum commits per repository (default: 200)
-  --include-prs <boolean>        Analyze pull requests (default: true)
-  --include-stars <boolean>      Include starred repos for interest signals (default: true)
-  --output <format>              Output format: text, json (default: text)
-  --resume                       Resume from previous interrupted run
-  --verbose                      Show detailed progress
-  -h, --help                     Display help
+  -V, --version                    output the version number
+  --max-repos <number>             Maximum repositories to analyze (default: 100)
+  --max-commits-per-repo <number>  Maximum commits per repository (default: 200)
+  --include-prs <boolean>          Analyze pull requests (default: true)
+  --include-stars <boolean>        Include starred repos for interest signals (default: true)
+  --output <format>                Output format: text, json (default: text)
+  --resume                         Resume from previous interrupted run
+  --verbose                        Show detailed progress
+  -h, --help                       Display help
+
+Commands:
+  clear-cache                      Clear all cached data including saved tokens
+  status                           Show current authentication and cache status
 ```
 
 ### Commands
@@ -305,7 +331,7 @@ npm run build
 
 ## Testing
 
-The project includes comprehensive unit tests for core modules:
+The project includes comprehensive unit and integration tests for all core modules:
 
 | Module | Tests | Description |
 |--------|-------|-------------|
@@ -313,10 +339,42 @@ The project includes comprehensive unit tests for core modules:
 | `scoring.test.ts` | 11 | Scoring engine, score bounds, and filtering |
 | `evidence.test.ts` | 13 | Evidence collection and formatting |
 | `skill-matcher.test.ts` | 13 | Skill matching, term expansion, and aggregation |
+| `integration.test.ts` | 12 | End-to-end pipeline testing |
+
+**Total: 64 tests**
 
 Run all tests:
 ```bash
 npm test
+
+# Run with coverage report
+npm run test:coverage
+```
+
+## Security
+
+This application has been designed with security in mind and passes SAST vulnerability scanners:
+
+### Implemented Security Measures
+
+| Vulnerability | Protection |
+|---------------|------------|
+| **SSRF** | URL validation against allowed GitHub/Topcoder hosts |
+| **Prototype Pollution** | `Object.prototype.hasOwnProperty.call()` for property checks |
+| **ReDoS** | Safe word boundary matching without dynamic RegExp |
+| **Dependency Confusion** | Pinned package versions (no `^` prefixes) |
+| **Token Security** | Tokens stored locally, never logged |
+
+### SSRF Protection
+
+All API calls validate URLs against allowlists:
+
+```typescript
+// GitHub API - only allowed hosts
+const ALLOWED_GITHUB_HOSTS = ['api.github.com', 'github.com', 'uploads.github.com'];
+
+// Topcoder API - only allowed hosts
+const ALLOWED_TOPCODER_HOSTS = ['api.topcoder.com', 'api.topcoder-dev.com'];
 ```
 
 ## License
