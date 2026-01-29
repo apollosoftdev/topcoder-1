@@ -2,6 +2,24 @@ import { Octokit } from '@octokit/rest';
 import { RateLimiter, RateLimitInfo } from '../utils/rate-limiter';
 import chalk from 'chalk';
 
+// Allowed GitHub API hosts for SSRF protection
+const ALLOWED_GITHUB_HOSTS = [
+  'api.github.com',
+  'github.com',
+  'uploads.github.com',
+  'raw.githubusercontent.com',
+];
+
+function isAllowedGitHubUrl(url: string | URL | Request): boolean {
+  try {
+    const urlString = url instanceof Request ? url.url : url.toString();
+    const parsedUrl = new URL(urlString);
+    return ALLOWED_GITHUB_HOSTS.includes(parsedUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export interface GitHubClientOptions {
   token: string;
   verbose?: boolean;
@@ -21,6 +39,11 @@ export class GitHubClient {
       auth: options.token,
       request: {
         fetch: async (url: string | URL | Request, options?: RequestInit) => {
+          // Validate URL against allowed GitHub hosts to prevent SSRF
+          if (!isAllowedGitHubUrl(url)) {
+            throw new Error('Invalid URL: Only GitHub API endpoints are allowed');
+          }
+
           await this.rateLimiter.waitIfNeeded();
           this.apiCalls++;
 

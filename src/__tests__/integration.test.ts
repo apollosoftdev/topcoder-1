@@ -263,7 +263,9 @@ describe('Integration Tests', () => {
 
       // Skills should be sorted by score
       for (let i = 1; i < topSkills.length; i++) {
-        expect(topSkills[i - 1].score).toBeGreaterThanOrEqual(topSkills[i].score);
+        const prevSkill = topSkills.at(i - 1);
+        const currSkill = topSkills.at(i);
+        expect(prevSkill!.score).toBeGreaterThanOrEqual(currSkill!.score);
       }
     });
 
@@ -353,9 +355,9 @@ describe('Integration Tests', () => {
     it('should load all config sections', () => {
       const config = loadSkillsConfig();
 
-      expect(config.fileExtensions).toBeDefined();
+      expect(config.extensionToTech).toBeDefined();
+      expect(config.specialFiles).toBeDefined();
       expect(config.shortTermExpansions).toBeDefined();
-      expect(config.techAliases).toBeDefined();
       expect(config.scoring).toBeDefined();
       expect(config.explanationThresholds).toBeDefined();
       expect(config.evidence).toBeDefined();

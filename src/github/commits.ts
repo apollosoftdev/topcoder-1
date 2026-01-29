@@ -1,5 +1,6 @@
 import { GitHubClient } from './client';
 import { CommitData } from '../utils/cache';
+import { getExtensionToTech, getSpecialFiles } from '../utils/config';
 
 export interface CommitAnalyzerOptions {
   maxCommitsPerRepo: number;
@@ -66,101 +67,15 @@ export class CommitAnalyzer {
   }
 }
 
-export function extractTechnologiesFromCommit(message: string, files: string[]): string[] {
+export function extractTechnologiesFromCommit(_message: string, files: string[]): string[] {
   const technologies: string[] = [];
-
-  const messagePatterns: Record<string, RegExp[]> = {
-    React: [/\breact\b/i, /\bcomponent\b/i, /\bhook\b/i, /\buseState\b/, /\buseEffect\b/],
-    Vue: [/\bvue\b/i, /\bvuex\b/i],
-    Angular: [/\bangular\b/i, /\bng-\w+\b/i],
-    TypeScript: [/\btypescript\b/i, /\bts\b/i, /\btype\s+\w+\b/],
-    Docker: [/\bdocker\b/i, /\bcontainer\b/i],
-    Kubernetes: [/\bk8s\b/i, /\bkubernetes\b/i, /\bpod\b/i, /\bdeployment\b/i],
-    GraphQL: [/\bgraphql\b/i, /\bquery\b/i, /\bmutation\b/i, /\bschema\b/i],
-    REST: [/\brest\s*api\b/i, /\bendpoint\b/i, /\bapi\b/i],
-    Testing: [/\btest\b/i, /\bspec\b/i, /\bjest\b/i, /\bmocha\b/i],
-    CI: [/\bci\b/i, /\bpipeline\b/i, /\bgithub\s*actions?\b/i],
-    Database: [/\bdatabase\b/i, /\bsql\b/i, /\bmigration\b/i, /\bschema\b/i],
-    Security: [/\bsecurity\b/i, /\bauth\b/i, /\btoken\b/i, /\bcredential\b/i],
-    Performance: [/\bperformance\b/i, /\boptimize\b/i, /\bcache\b/i],
-    Refactor: [/\brefactor\b/i, /\brestructure\b/i, /\bcleanup\b/i],
-  };
-
-  for (const [tech, patterns] of Object.entries(messagePatterns)) {
-    for (const pattern of patterns) {
-      if (pattern.test(message)) {
-        technologies.push(tech);
-        break;
-      }
-    }
-  }
-
-  const fileExtensionMap: Record<string, string> = {
-    '.ts': 'TypeScript',
-    '.tsx': 'TypeScript',
-    '.js': 'JavaScript',
-    '.jsx': 'JavaScript',
-    '.py': 'Python',
-    '.rb': 'Ruby',
-    '.go': 'Go',
-    '.rs': 'Rust',
-    '.java': 'Java',
-    '.kt': 'Kotlin',
-    '.swift': 'Swift',
-    '.cs': 'C#',
-    '.cpp': 'C++',
-    '.c': 'C',
-    '.php': 'PHP',
-    '.scala': 'Scala',
-    '.sql': 'SQL',
-    '.graphql': 'GraphQL',
-    '.proto': 'Protocol Buffers',
-    '.yaml': 'YAML',
-    '.yml': 'YAML',
-    '.json': 'JSON',
-    '.xml': 'XML',
-    '.html': 'HTML',
-    '.css': 'CSS',
-    '.scss': 'SCSS',
-    '.less': 'LESS',
-    '.md': 'Markdown',
-    '.sh': 'Shell',
-    '.bash': 'Bash',
-    '.dockerfile': 'Docker',
-    '.tf': 'Terraform',
-    '.hcl': 'HCL',
-  };
-
-  const specialFiles: Record<string, string> = {
-    'package.json': 'Node.js',
-    'tsconfig.json': 'TypeScript',
-    'docker-compose.yml': 'Docker',
-    'Dockerfile': 'Docker',
-    '.github/workflows': 'GitHub Actions',
-    'Makefile': 'Make',
-    'CMakeLists.txt': 'CMake',
-    'Cargo.toml': 'Rust',
-    'go.mod': 'Go',
-    'requirements.txt': 'Python',
-    'Gemfile': 'Ruby',
-    'pom.xml': 'Maven',
-    'build.gradle': 'Gradle',
-    '.eslintrc': 'ESLint',
-    '.prettierrc': 'Prettier',
-    'jest.config': 'Jest',
-    'webpack.config': 'Webpack',
-    'vite.config': 'Vite',
-    'tailwind.config': 'Tailwind CSS',
-    '.env': 'Environment Config',
-    'kubernetes': 'Kubernetes',
-    'k8s': 'Kubernetes',
-    'terraform': 'Terraform',
-  };
+  const extensionToTech = getExtensionToTech();
+  const specialFiles = getSpecialFiles();
 
   for (const file of files) {
     const ext = '.' + file.split('.').pop()?.toLowerCase();
-    if (ext && fileExtensionMap[ext]) {
-      technologies.push(fileExtensionMap[ext]);
+    if (ext && Object.prototype.hasOwnProperty.call(extensionToTech, ext)) {
+      technologies.push(extensionToTech[ext]);
     }
 
     for (const [pattern, tech] of Object.entries(specialFiles)) {

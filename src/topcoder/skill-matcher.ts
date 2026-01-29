@@ -9,31 +9,11 @@ export interface MatchedSkill {
   rawScore: number; // [NOTE]: Weighted count before normalization
 }
 
-// [NOTE]: Load tech aliases from config file (config/skills.json)
-function getTechAliases(): Record<string, string[]> {
-  const config = loadSkillsConfig();
-  return config.techAliases;
-}
-
 export class SkillMatcher {
   private skillsApi: TopcoderSkillsAPI;
-  private aliasToSkill: Map<string, string> = new Map(); // [NOTE]: alias -> skill name lookup
 
   constructor(skillsApi: TopcoderSkillsAPI) {
     this.skillsApi = skillsApi;
-    this.buildAliasIndex();
-  }
-
-  // [NOTE]: Build reverse lookup from aliases to skill names (from config)
-  private buildAliasIndex(): void {
-    const techAliases = getTechAliases();
-    for (const [skillName, aliases] of Object.entries(techAliases)) {
-      for (const alias of aliases) {
-        this.aliasToSkill.set(alias.toLowerCase(), skillName);
-      }
-      // [NOTE]: Also map the skill name itself
-      this.aliasToSkill.set(skillName.toLowerCase(), skillName);
-    }
   }
 
   // [!IMPORTANT]: Main matching function - maps tech terms to Topcoder skills via API
@@ -109,8 +89,8 @@ export class SkillMatcher {
     if (queryLower.startsWith(skillLower.replace(/[.\s-]/g, ''))) return true;
 
     // [NOTE]: Check if query appears as a whole word in skill name
-    const wordBoundary = new RegExp(`\\b${this.escapeRegex(queryLower)}\\b`, 'i');
-    if (wordBoundary.test(skillLower)) return true;
+    // Using string-based word boundary check instead of dynamic RegExp to avoid ReDoS
+    if (this.isWholeWordMatch(skillLower, queryLower)) return true;
 
     // [NOTE]: Check if skill name contains query (for compound skills)
     if (skillLower.includes(queryLower) && queryLower.length >= 3) {
@@ -128,15 +108,37 @@ export class SkillMatcher {
     return false;
   }
 
-  // [NOTE]: Escape special regex characters
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // [NOTE]: Safe word boundary check without dynamic RegExp (ReDoS-safe)
+  private isWholeWordMatch(text: string, word: string): boolean {
+    const wordBoundaryChars = /[^a-z0-9]/i;
+    let index = 0;
+
+    while ((index = text.indexOf(word, index)) !== -1) {
+      const charBefore = index > 0 ? text[index - 1] : ' ';
+      const charAfter = index + word.length < text.length ? text[index + word.length] : ' ';
+
+      const boundaryBefore = wordBoundaryChars.test(charBefore);
+      const boundaryAfter = wordBoundaryChars.test(charAfter);
+
+      if (boundaryBefore && boundaryAfter) {
+        return true;
+      }
+      index++;
+    }
+
+    return false;
   }
 
   // [NOTE]: Expand short terms to full names (e.g., "js" -> "javascript")
   private expandTerm(term: string): string {
     const config = loadSkillsConfig();
     const shortTermExpansions = config.shortTermExpansions;
-    return shortTermExpansions[term.toLowerCase()] || term;
+    const termLower = term.toLowerCase();
+
+    // Use Object.prototype.hasOwnProperty.call to safely check property existence and prevent prototype pollution
+    if (Object.prototype.hasOwnProperty.call(shortTermExpansions, termLower)) {
+      return shortTermExpansions[termLower];
+    }
+    return term;
   }
 }

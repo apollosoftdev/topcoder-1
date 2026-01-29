@@ -17,9 +17,9 @@ describe('Config', () => {
       const config = loadSkillsConfig();
 
       expect(config).toBeDefined();
-      expect(config.fileExtensions).toBeDefined();
+      expect(config.extensionToTech).toBeDefined();
+      expect(config.specialFiles).toBeDefined();
       expect(config.shortTermExpansions).toBeDefined();
-      expect(config.techAliases).toBeDefined();
       expect(config.scoring).toBeDefined();
       expect(config.explanationThresholds).toBeDefined();
     });
@@ -72,20 +72,23 @@ describe('Config', () => {
 
   describe('expandShortTerm', () => {
     it('should expand known short terms', () => {
-      expect(expandShortTerm('js')).toBe('javascript');
-      expect(expandShortTerm('ts')).toBe('typescript');
-      expect(expandShortTerm('py')).toBe('python');
-      expect(expandShortTerm('rb')).toBe('ruby');
+      expect(expandShortTerm('js')).toBe('JavaScript');
+      expect(expandShortTerm('ts')).toBe('TypeScript');
+      expect(expandShortTerm('py')).toBe('Python');
+      expect(expandShortTerm('rb')).toBe('Ruby');
     });
 
     it('should be case-insensitive', () => {
-      expect(expandShortTerm('JS')).toBe('javascript');
-      expect(expandShortTerm('Ts')).toBe('typescript');
+      expect(expandShortTerm('JS')).toBe('JavaScript');
+      expect(expandShortTerm('Ts')).toBe('TypeScript');
     });
 
     it('should return original term if no expansion exists', () => {
-      expect(expandShortTerm('react')).toBe('react');
-      expect(expandShortTerm('docker')).toBe('docker');
+      // Terms that exist in shortTermExpansions return their expanded form
+      expect(expandShortTerm('react')).toBe('React');
+      expect(expandShortTerm('docker')).toBe('Docker');
+      // Terms that don't exist return as-is
+      expect(expandShortTerm('unknownterm')).toBe('unknownterm');
     });
   });
 
