@@ -156,14 +156,18 @@ export class TopcoderSkillsAPI {
 
     // [NOTE]: Check local cache first
     const cached = this.skillCache.get(queryLower);
-    if (cached) return [cached];
+    if (cached) {
+      return [cached];
+    }
 
     // [NOTE]: Try autocomplete first (prefix match)
     const autocompleteResults = await this.autocomplete(query, 5);
     if (autocompleteResults.length > 0) {
       // [NOTE]: Prioritize exact matches
       const exactMatch = autocompleteResults.find(s => s.name.toLowerCase() === queryLower);
-      if (exactMatch) return [exactMatch];
+      if (exactMatch) {
+        return [exactMatch];
+      }
       return autocompleteResults;
     }
 

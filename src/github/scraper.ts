@@ -226,7 +226,9 @@ export function extractAllTechnologies(data: CollectedGitHubData): Map<string, n
 
     for (const [lang, bytes] of Object.entries(repo.languages)) {
       const weight = Math.min(Math.floor(bytes / 10000), 10);
-      increment(lang, weight);
+      if (weight > 0) {
+        increment(lang, weight);
+      }
     }
 
     for (const topic of repo.topics) {

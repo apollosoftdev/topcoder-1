@@ -4,6 +4,7 @@ import * as path from 'path';
 // [NOTE]: Constants configuration loaded from config/constants.json
 export interface ConstantsConfig {
   shortTermExpansions: Record<string, string>;
+  languageAliases: Record<string, string[]>;
   scoring: {
     weights: {
       language: number;
@@ -136,5 +137,32 @@ export function getExtensionToTech(): Record<string, string> {
 export function getSpecialFiles(): Record<string, string> {
   const config = loadSkillsConfig();
   return config.specialFiles;
+}
+
+// [NOTE]: Get language aliases mapping
+export function getLanguageAliases(): Record<string, string[]> {
+  const config = loadSkillsConfig();
+  return config.languageAliases;
+}
+
+// [NOTE]: Check if two terms are aliases of each other (e.g., "C#" and "csharp")
+export function areTermsAliases(term1: string, term2: string): boolean {
+  const aliases = getLanguageAliases();
+  const normalize = (s: string) => s.toLowerCase().replace(/[.\s-]/g, '');
+  const t1 = normalize(term1);
+  const t2 = normalize(term2);
+
+  // Check exact match
+  if (t1 === t2) return true;
+
+  // Check if both terms belong to the same alias group
+  for (const [canonical, aliasList] of Object.entries(aliases)) {
+    const allForms = [canonical, ...aliasList].map(normalize);
+    if (allForms.includes(t1) && allForms.includes(t2)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 

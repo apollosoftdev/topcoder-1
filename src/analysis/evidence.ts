@@ -1,5 +1,34 @@
 import { CollectedGitHubData } from '../utils/cache';
-import { getEvidenceConfig } from '../utils/config';
+import { getEvidenceConfig, areTermsAliases } from '../utils/config';
+
+// [NOTE]: Check if a term appears as a whole word in text (prevents "java" matching in "javascript")
+function containsWholeWord(text: string, word: string): boolean {
+  const wordLower = word.toLowerCase();
+  const textLower = text.toLowerCase();
+
+  const wordBoundaryChars = /[^a-z0-9]/i;
+  let index = 0;
+
+  while ((index = textLower.indexOf(wordLower, index)) !== -1) {
+    const charBefore = index > 0 ? textLower[index - 1] : ' ';
+    const charAfter = index + wordLower.length < textLower.length ? textLower[index + wordLower.length] : ' ';
+
+    const boundaryBefore = wordBoundaryChars.test(charBefore);
+    const boundaryAfter = wordBoundaryChars.test(charAfter);
+
+    if (boundaryBefore && boundaryAfter) {
+      return true;
+    }
+    index++;
+  }
+
+  return false;
+}
+
+// [NOTE]: Check if two terms match (exact, normalized, or aliases) - uses config/constants.json
+function termsMatch(term1: string, term2: string): boolean {
+  return areTermsAliases(term1, term2);
+}
 
 export interface Evidence {
   type: 'repo' | 'commit' | 'pr' | 'starred' | 'topic';
@@ -57,9 +86,9 @@ function collectRepoEvidence(
         repo.language?.toLowerCase(),
         ...Object.keys(repo.languages).map(l => l.toLowerCase()),
         ...repo.topics.map(t => t.toLowerCase()),
-        repo.description?.toLowerCase() || '',
       ].filter((rt): rt is string => rt !== undefined); // [NOTE]: Filter out undefined
-      return terms.some(t => repoTerms.some(rt => rt.includes(t)));
+      // Use exact/normalized matching to prevent "java" matching "javascript"
+      return terms.some(t => repoTerms.some(rt => termsMatch(t, rt)));
     })
     .sort((a, b) => b.stars - a.stars);
 
@@ -86,7 +115,8 @@ function collectPREvidence(
   const matchingPRs = data.pullRequests
     .filter(pr => {
       const text = `${pr.title} ${pr.body || ''}`.toLowerCase();
-      return terms.some(t => text.includes(t));
+      // Use whole word matching to prevent "java" matching "javascript"
+      return terms.some(t => containsWholeWord(text, t));
     })
     .filter(pr => pr.merged)
     .slice(0, limit);
@@ -114,7 +144,8 @@ function collectCommitEvidence(
 
   for (const commit of data.commits) {
     const messageLower = commit.message.toLowerCase();
-    if (terms.some(t => messageLower.includes(t))) {
+    // Use whole word matching to prevent "java" matching "javascript"
+    if (terms.some(t => containsWholeWord(messageLower, t))) {
       const count = repoCommitCounts.get(commit.repo) || 0;
       repoCommitCounts.set(commit.repo, count + 1);
     }
@@ -151,9 +182,9 @@ function collectStarEvidence(
       const starTerms = [
         star.language?.toLowerCase(),
         ...star.topics.map(t => t.toLowerCase()),
-        star.description?.toLowerCase() || '',
       ].filter((st): st is string => st !== undefined); // [NOTE]: Filter out undefined
-      return terms.some(t => starTerms.some(st => st.includes(t)));
+      // Use exact/normalized matching to prevent "java" matching "javascript"
+      return terms.some(t => starTerms.some(st => termsMatch(t, st)));
     })
     .slice(0, limit);
 

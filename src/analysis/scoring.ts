@@ -1,7 +1,7 @@
 import { CollectedGitHubData, TopcoderSkill, RepoData } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
-import { loadSkillsConfig, getFileExtensions, getExplanationThresholds } from '../utils/config';
+import { loadSkillsConfig, getFileExtensions, getExplanationThresholds, areTermsAliases } from '../utils/config';
 
 // [NOTE]: Helper to extract searchable terms from a repo
 function getRepoTerms(repo: RepoData): string[] {
@@ -15,9 +15,39 @@ function getRepoTerms(repo: RepoData): string[] {
   return terms;
 }
 
+// [NOTE]: Check if two terms match (exact, normalized, or aliases) - uses config/constants.json
+function termsMatch(term1: string, term2: string): boolean {
+  return areTermsAliases(term1, term2);
+}
+
 // [NOTE]: Check if any skill term matches any repo term
 function termsMatchRepo(skillTerms: string[], repoTerms: string[]): boolean {
-  return skillTerms.some(t => repoTerms.some(rt => rt.includes(t) || t.includes(rt)));
+  return skillTerms.some(t => repoTerms.some(rt => termsMatch(t, rt)));
+}
+
+// [NOTE]: Check if a term appears as a whole word in text (prevents "java" matching in "javascript")
+function containsWholeWord(text: string, word: string): boolean {
+  const wordLower = word.toLowerCase();
+  const textLower = text.toLowerCase();
+
+  // For very short words (<=2 chars), require exact word boundaries
+  const wordBoundaryChars = /[^a-z0-9]/i;
+  let index = 0;
+
+  while ((index = textLower.indexOf(wordLower, index)) !== -1) {
+    const charBefore = index > 0 ? textLower[index - 1] : ' ';
+    const charAfter = index + wordLower.length < textLower.length ? textLower[index + wordLower.length] : ' ';
+
+    const boundaryBefore = wordBoundaryChars.test(charBefore);
+    const boundaryAfter = wordBoundaryChars.test(charAfter);
+
+    if (boundaryBefore && boundaryAfter) {
+      return true;
+    }
+    index++;
+  }
+
+  return false;
 }
 
 
@@ -157,8 +187,8 @@ export class ScoringEngine {
       if (extensions.some(ext => fileLower.endsWith(ext))) {
         return true;
       }
-      // [NOTE]: Also check if term appears in filename
-      if (fileLower.includes(term)) {
+      // [NOTE]: Check if term appears as whole word in filename (prevents "java" in "javascript-utils.ts")
+      if (containsWholeWord(fileLower, term)) {
         return true;
       }
     }
@@ -194,7 +224,8 @@ export class ScoringEngine {
         // [NOTE]: Sum language bytes
         for (const [lang, bytes] of Object.entries(repo.languages)) {
           totalLanguageBytes += bytes;
-          if (terms.some(t => lang.toLowerCase().includes(t))) {
+          // Use exact/normalized matching for language names
+          if (terms.some(t => termsMatch(t, lang.toLowerCase()))) {
             skillLanguageBytes += bytes;
           }
         }
@@ -229,8 +260,8 @@ export class ScoringEngine {
       // [NOTE]: Check file extensions first (more reliable)
       const hasMatchingFile = filesLower.some(file => this.fileMatchesSkill(file, terms));
 
-      // [NOTE]: Check commit message
-      const hasMatchingMessage = terms.some(t => messageLower.includes(t));
+      // [NOTE]: Check commit message - use whole word matching to prevent "java" matching "javascript"
+      const hasMatchingMessage = terms.some(t => containsWholeWord(messageLower, t));
 
       if (hasMatchingFile) {
         relevantCommits++;
@@ -260,8 +291,8 @@ export class ScoringEngine {
     for (const pr of data.pullRequests) {
       const textLower = `${pr.title} ${pr.body || ''}`.toLowerCase();
 
-      // [NOTE]: Check PR content for skill terms
-      const hasMatchingContent = terms.some(t => textLower.includes(t));
+      // [NOTE]: Check PR content for skill terms - use whole word matching
+      const hasMatchingContent = terms.some(t => containsWholeWord(textLower, t));
 
       if (hasMatchingContent) {
         relevantPRs++;
