@@ -7,7 +7,7 @@
     "tc-skills": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r config dist/",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "clean": "rm -rf dist",

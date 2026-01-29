@@ -52,8 +52,9 @@ export function loadSkillsConfig(): ConstantsConfig {
 
   const configPaths = [
     customPath,
-    path.join(process.cwd(), 'config', 'constants.json'),
-    path.join(__dirname, '..', '..', 'config', 'constants.json'),
+    path.join(process.cwd(), 'config', 'constants.json'),       // Project root
+    path.join(__dirname, '..', 'config', 'constants.json'),     // dist/config (when running from dist)
+    path.join(__dirname, '..', '..', 'config', 'constants.json'), // src -> config (when running from source)
   ].filter(Boolean) as string[];
 
   for (const configPath of configPaths) {
