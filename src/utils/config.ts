@@ -3,9 +3,7 @@ import * as path from 'path';
 
 // [NOTE]: Constants configuration loaded from config/constants.json
 export interface ConstantsConfig {
-  fileExtensions: Record<string, string[]>;
   shortTermExpansions: Record<string, string>;
-  techAliases: Record<string, string[]>;
   scoring: {
     weights: {
       language: number;
@@ -36,6 +34,8 @@ export interface ConstantsConfig {
     commitLimit: number;
     starLimit: number;
   };
+  extensionToTech: Record<string, string>;
+  specialFiles: Record<string, string>;
 }
 
 let cachedConfig: ConstantsConfig | null = null;
@@ -64,7 +64,7 @@ export function loadSkillsConfig(): ConstantsConfig {
       }
     } catch (error) {
       // [NOTE]: Continue to next path if parsing fails
-      console.error(`Failed to parse config at ${configPath}:`, error);
+      console.error('Failed to parse config at %s:', configPath, error);
     }
   }
 
@@ -80,16 +80,32 @@ export function clearConfigCache(): void {
   cachedConfig = null;
 }
 
-// [NOTE]: Get file extensions for a skill term
+// [NOTE]: Get file extensions for a tech term (derived from extensionToTech)
 export function getFileExtensions(term: string): string[] {
   const config = loadSkillsConfig();
-  return config.fileExtensions[term.toLowerCase()] || [];
+  const termLower = term.toLowerCase();
+  const extensions: string[] = [];
+
+  // Reverse lookup: find all extensions that map to this tech
+  for (const [ext, tech] of Object.entries(config.extensionToTech)) {
+    if (tech.toLowerCase() === termLower) {
+      extensions.push(ext);
+    }
+  }
+
+  return extensions;
 }
 
 // [NOTE]: Expand short term to full term
 export function expandShortTerm(term: string): string {
   const config = loadSkillsConfig();
-  return config.shortTermExpansions[term.toLowerCase()] || term;
+  const termLower = term.toLowerCase();
+
+  // Use Object.prototype.hasOwnProperty.call to safely check property existence and prevent prototype pollution
+  if (Object.prototype.hasOwnProperty.call(config.shortTermExpansions, termLower)) {
+    return config.shortTermExpansions[termLower];
+  }
+  return term;
 }
 
 // [NOTE]: Get scoring config
@@ -109,3 +125,16 @@ export function getEvidenceConfig() {
   const config = loadSkillsConfig();
   return config.evidence;
 }
+
+// [NOTE]: Get extension to tech mapping
+export function getExtensionToTech(): Record<string, string> {
+  const config = loadSkillsConfig();
+  return config.extensionToTech;
+}
+
+// [NOTE]: Get special files mapping
+export function getSpecialFiles(): Record<string, string> {
+  const config = loadSkillsConfig();
+  return config.specialFiles;
+}
+

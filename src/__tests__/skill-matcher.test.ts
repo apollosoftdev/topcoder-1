@@ -92,7 +92,9 @@ describe('SkillMatcher', () => {
       const matches = await matcher.matchTechnologies(techCounts);
 
       for (let i = 1; i < matches.length; i++) {
-        expect(matches[i - 1].rawScore).toBeGreaterThanOrEqual(matches[i].rawScore);
+        const prevMatch = matches.at(i - 1);
+        const currMatch = matches.at(i);
+        expect(prevMatch!.rawScore).toBeGreaterThanOrEqual(currMatch!.rawScore);
       }
     });
 

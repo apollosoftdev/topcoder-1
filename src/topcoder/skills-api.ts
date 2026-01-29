@@ -4,6 +4,37 @@ import chalk from 'chalk';
 // [!IMPORTANT]: Topcoder API base URL - configurable via environment
 const TOPCODER_API_BASE = process.env.TOPCODER_API_BASE || 'https://api.topcoder-dev.com/v5';
 
+// Allowed Topcoder API hosts for SSRF protection
+const ALLOWED_TOPCODER_HOSTS = [
+  'api.topcoder.com',
+  'api.topcoder-dev.com',
+];
+
+// Validate that the constructed URL points to an allowed Topcoder host
+function validateTopcoderUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    return ALLOWED_TOPCODER_HOSTS.includes(parsedUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Safely build API URL with validated parameters
+function buildApiUrl(endpoint: string, params: Record<string, string | number>): string {
+  const url = new URL(`${TOPCODER_API_BASE}${endpoint}`);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value));
+  }
+
+  // Validate the constructed URL
+  if (!validateTopcoderUrl(url.toString())) {
+    throw new Error('Invalid API URL: Only Topcoder API endpoints are allowed');
+  }
+
+  return url.toString();
+}
+
 // [NOTE]: Category object in standardized skills response
 export interface SkillCategoryDto {
   id: string;
@@ -59,12 +90,14 @@ export class TopcoderSkillsAPI {
     if (!term || term.length < 2) return [];
 
     try {
-      const response = await fetch(
-        `${TOPCODER_API_BASE}/standardized-skills/skills/autocomplete?term=${encodeURIComponent(term)}&size=${size}`,
-        {
-          headers: { Accept: 'application/json' },
-        }
-      );
+      const apiUrl = buildApiUrl('/standardized-skills/skills/autocomplete', {
+        term: term,
+        size: size,
+      });
+
+      const response = await fetch(apiUrl, {
+        headers: { Accept: 'application/json' },
+      });
 
       if (!response.ok) {
         return [];
@@ -87,12 +120,14 @@ export class TopcoderSkillsAPI {
     if (!term || term.length < 2) return [];
 
     try {
-      const response = await fetch(
-        `${TOPCODER_API_BASE}/standardized-skills/skills/fuzzymatch?term=${encodeURIComponent(term)}&size=${size}`,
-        {
-          headers: { Accept: 'application/json' },
-        }
-      );
+      const apiUrl = buildApiUrl('/standardized-skills/skills/fuzzymatch', {
+        term: term,
+        size: size,
+      });
+
+      const response = await fetch(apiUrl, {
+        headers: { Accept: 'application/json' },
+      });
 
       if (!response.ok) {
         return [];

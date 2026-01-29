@@ -1,5 +1,5 @@
 import { GitHubClient } from './client';
-import { RepoAnalyzer, extractFrameworksFromReadme } from './repos';
+import { RepoAnalyzer } from './repos';
 import { CommitAnalyzer, extractTechnologiesFromCommit } from './commits';
 import { PRAnalyzer, extractTechnologiesFromPR } from './pull-requests';
 import { aggregateLanguages } from './languages';
@@ -231,13 +231,6 @@ export function extractAllTechnologies(data: CollectedGitHubData): Map<string, n
 
     for (const topic of repo.topics) {
       increment(topic, 2);
-    }
-
-    if (repo.readme) {
-      const frameworks = extractFrameworksFromReadme(repo.readme);
-      for (const fw of frameworks) {
-        increment(fw, 3);
-      }
     }
   }
 
