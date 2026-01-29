@@ -1,27 +1,42 @@
 import { RepoData, LanguageStats } from '../utils/cache';
 
+// Internal type for Map-based accumulation
+interface LangAccum {
+  bytes: number;
+  repos: number;
+}
+
 export function aggregateLanguages(repos: RepoData[]): LanguageStats {
-  const stats: LanguageStats = Object.create(null);
+  // Use Map to avoid object injection vulnerabilities
+  const statsMap = new Map<string, LangAccum>();
   let totalBytes = 0;
 
   for (const repo of repos) {
     for (const [lang, bytes] of Object.entries(repo.languages)) {
-      // Use Object.prototype.hasOwnProperty.call for safe property check to prevent prototype pollution
-      if (!Object.prototype.hasOwnProperty.call(stats, lang)) {
-        stats[lang] = { bytes: 0, repos: 0, percentage: 0 };
+      const existing = statsMap.get(lang);
+      if (existing) {
+        existing.bytes += bytes;
+        existing.repos += 1;
+      } else {
+        statsMap.set(lang, { bytes, repos: 1 });
       }
-      const langStats = stats[lang];
-      langStats.bytes += bytes;
-      langStats.repos += 1;
       totalBytes += bytes;
     }
   }
 
-  for (const lang of Object.keys(stats)) {
-    const langStats = stats[lang];
-    langStats.percentage = totalBytes > 0
-      ? Math.round((langStats.bytes / totalBytes) * 10000) / 100
+  // Convert Map to LanguageStats object with calculated percentages
+  const stats: LanguageStats = Object.create(null);
+  for (const [lang, data] of statsMap.entries()) {
+    const percentage = totalBytes > 0
+      ? Math.round((data.bytes / totalBytes) * 10000) / 100
       : 0;
+    // Use Object.defineProperty for safe property assignment
+    Object.defineProperty(stats, lang, {
+      value: { bytes: data.bytes, repos: data.repos, percentage },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
 
   return stats;

@@ -10,14 +10,17 @@ const ALLOWED_GITHUB_HOSTS = [
   'raw.githubusercontent.com',
 ];
 
-function isAllowedGitHubUrl(url: string | URL | Request): boolean {
-  try {
-    const urlString = url instanceof Request ? url.url : url.toString();
-    const parsedUrl = new URL(urlString);
-    return ALLOWED_GITHUB_HOSTS.includes(parsedUrl.hostname);
-  } catch {
-    return false;
+// Validates and returns a safe GitHub URL, throws if invalid
+function validateAndGetGitHubUrl(url: string | URL | Request): string {
+  const urlString = url instanceof Request ? url.url : url.toString();
+  const parsedUrl = new URL(urlString);
+
+  if (!ALLOWED_GITHUB_HOSTS.includes(parsedUrl.hostname)) {
+    throw new Error('Invalid URL: Only GitHub API endpoints are allowed');
   }
+
+  // Return the validated URL string from the parsed URL (not the original input)
+  return parsedUrl.toString();
 }
 
 export interface GitHubClientOptions {
@@ -40,14 +43,13 @@ export class GitHubClient {
       request: {
         fetch: async (url: string | URL | Request, options?: RequestInit) => {
           // Validate URL against allowed GitHub hosts to prevent SSRF
-          if (!isAllowedGitHubUrl(url)) {
-            throw new Error('Invalid URL: Only GitHub API endpoints are allowed');
-          }
+          // Use validated URL string instead of original input
+          const validatedUrl = validateAndGetGitHubUrl(url);
 
           await this.rateLimiter.waitIfNeeded();
           this.apiCalls++;
 
-          const response = await fetch(url, options);
+          const response = await fetch(validatedUrl, options);
 
           this.rateLimiter.updateFromHeaders({
             'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining') ?? undefined,

@@ -11,29 +11,50 @@ const ALLOWED_TOPCODER_HOSTS = [
   'api.topcoder-dev.com',
 ];
 
-// Validate that the constructed URL points to an allowed Topcoder host
-function validateTopcoderUrl(url: string): boolean {
+// Hardcoded API endpoints for SSRF protection - only these exact paths are allowed
+const ALLOWED_ENDPOINTS = new Set([
+  '/standardized-skills/skills/autocomplete',
+  '/standardized-skills/skills/fuzzymatch',
+  '/standardized-skills/skills',
+]);
+
+// Validate that the base URL points to an allowed Topcoder host
+function validateTopcoderBaseUrl(): void {
   try {
-    const parsedUrl = new URL(url);
-    return ALLOWED_TOPCODER_HOSTS.includes(parsedUrl.hostname);
+    const parsedUrl = new URL(TOPCODER_API_BASE);
+    if (!ALLOWED_TOPCODER_HOSTS.includes(parsedUrl.hostname)) {
+      throw new Error('Invalid API base URL: Only Topcoder API hosts are allowed');
+    }
   } catch {
-    return false;
+    throw new Error('Invalid API base URL configuration');
   }
 }
 
-// Safely build API URL with validated parameters
-function buildApiUrl(endpoint: string, params: Record<string, string | number>): string {
+// Safely fetch from a hardcoded endpoint with sanitized query parameters
+async function safeFetch(
+  endpoint: string,
+  params: Record<string, string | number>
+): Promise<Response> {
+  // Validate endpoint is in allowlist
+  if (!ALLOWED_ENDPOINTS.has(endpoint)) {
+    throw new Error('Invalid API endpoint: Only allowed Topcoder endpoints can be accessed');
+  }
+
+  // Validate base URL at runtime
+  validateTopcoderBaseUrl();
+
+  // Build URL with validated endpoint
   const url = new URL(`${TOPCODER_API_BASE}${endpoint}`);
+
+  // Add sanitized query parameters (URL API handles encoding)
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, String(value));
   }
 
-  // Validate the constructed URL
-  if (!validateTopcoderUrl(url.toString())) {
-    throw new Error('Invalid API URL: Only Topcoder API endpoints are allowed');
-  }
-
-  return url.toString();
+  // Fetch using the validated URL
+  return fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+  });
 }
 
 // [NOTE]: Category object in standardized skills response
@@ -91,13 +112,10 @@ export class TopcoderSkillsAPI {
     if (!term || term.length < 2) return [];
 
     try {
-      const apiUrl = buildApiUrl('/standardized-skills/skills/autocomplete', {
+      // Use safeFetch with hardcoded endpoint to prevent SSRF
+      const response = await safeFetch('/standardized-skills/skills/autocomplete', {
         term: term,
         size: size,
-      });
-
-      const response = await fetch(apiUrl, {
-        headers: { Accept: 'application/json' },
       });
 
       if (!response.ok) {
@@ -121,13 +139,10 @@ export class TopcoderSkillsAPI {
     if (!term || term.length < 2) return [];
 
     try {
-      const apiUrl = buildApiUrl('/standardized-skills/skills/fuzzymatch', {
+      // Use safeFetch with hardcoded endpoint to prevent SSRF
+      const response = await safeFetch('/standardized-skills/skills/fuzzymatch', {
         term: term,
         size: size,
-      });
-
-      const response = await fetch(apiUrl, {
-        headers: { Accept: 'application/json' },
       });
 
       if (!response.ok) {
@@ -239,13 +254,10 @@ export class TopcoderSkillsAPI {
   // [NOTE]: Fetch all skills from API and cache them
   async fetchAllSkills(): Promise<void> {
     try {
-      const apiUrl = buildApiUrl('/standardized-skills/skills', {
+      // Use safeFetch with hardcoded endpoint to prevent SSRF
+      const response = await safeFetch('/standardized-skills/skills', {
         page: 1,
         perPage: 10000, // Fetch all skills
-      });
-
-      const response = await fetch(apiUrl, {
-        headers: { Accept: 'application/json' },
       });
 
       if (!response.ok) {
