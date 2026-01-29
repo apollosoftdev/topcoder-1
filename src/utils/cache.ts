@@ -42,6 +42,7 @@ export interface RepoData {
   createdAt: string;
   updatedAt: string;
   readme?: string;
+  rootFiles?: string[]; // [NOTE]: List of files in repo root for config detection
 }
 
 // [NOTE]: Commit data for technology detection

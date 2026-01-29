@@ -56,36 +56,30 @@ export class PRAnalyzer {
   }
 }
 
-export function extractTechnologiesFromPR(title: string, body: string | null): string[] {
-  const technologies: string[] = [];
+// [NOTE]: Extract technologies from PR using API skill names
+// skillNames parameter comes from TopcoderSkillsAPI.getAllSkillNames()
+export function extractTechnologiesFromPR(
+  title: string,
+  body: string | null,
+  skillNames?: string[]
+): string[] {
+  if (!skillNames || skillNames.length === 0) {
+    return [];
+  }
+
   const text = `${title} ${body || ''}`.toLowerCase();
+  const foundSkills: string[] = [];
 
-  const patterns: Record<string, RegExp[]> = {
-    'Feature Development': [/\bfeat(ure)?\b/, /\badd(ed|ing)?\b.*\bfeature\b/, /\bimplement/],
-    'Bug Fix': [/\bfix(ed|es|ing)?\b/, /\bbug\b/, /\bissue\b/, /\bpatch\b/],
-    'Performance': [/\bperformance\b/, /\boptimiz(e|ation)\b/, /\bspeed\b/, /\bfast(er)?\b/],
-    'Security': [/\bsecurity\b/, /\bvulnerabil(ity|e)\b/, /\bcve\b/, /\bauth(entication|orization)?\b/],
-    'Testing': [/\btest(s|ing)?\b/, /\bcoverage\b/, /\bunit\b.*\btest/, /\bintegration\b.*\btest/],
-    'Documentation': [/\bdoc(s|umentation)?\b/, /\breadme\b/, /\bcomment(s)?\b/],
-    'Refactoring': [/\brefactor(ing|ed)?\b/, /\bclean(up|ing)?\b/, /\brestructure\b/],
-    'DevOps': [/\bci\/?cd\b/, /\bpipeline\b/, /\bdeploy(ment)?\b/, /\binfrastructure\b/],
-    'API Development': [/\bapi\b/, /\bendpoint\b/, /\brest\b/, /\bgraphql\b/],
-    'Database': [/\bdatabase\b/, /\bdb\b/, /\bmigration\b/, /\bschema\b/, /\bsql\b/],
-    'Frontend': [/\bui\b/, /\bfrontend\b/, /\bcss\b/, /\bstyle\b/, /\bcomponent\b/],
-    'Backend': [/\bbackend\b/, /\bserver\b/, /\bservice\b/],
-    'Mobile': [/\bmobile\b/, /\bios\b/, /\bandroid\b/, /\breact\s*native\b/],
-    'Machine Learning': [/\bml\b/, /\bmachine\s*learning\b/, /\bmodel\b/, /\btraining\b/],
-    'Data Engineering': [/\bdata\s*pipeline\b/, /\betl\b/, /\bdata\s*processing\b/],
-  };
-
-  for (const [tech, regexList] of Object.entries(patterns)) {
-    for (const regex of regexList) {
-      if (regex.test(text)) {
-        technologies.push(tech);
-        break;
-      }
+  for (const skillName of skillNames) {
+    const skillLower = skillName.toLowerCase();
+    // Check for whole word match using word boundaries
+    // Escape special regex characters in skill name
+    const escaped = skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (regex.test(text)) {
+      foundSkills.push(skillName);
     }
   }
 
-  return [...new Set(technologies)];
+  return [...new Set(foundSkills)];
 }

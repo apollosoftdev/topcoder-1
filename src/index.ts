@@ -145,16 +145,24 @@ async function run(options: CLIOptions): Promise<void> {
   // [NOTE]: Step 3 - Scrape GitHub data
   const { data: githubData, stats } = await scraper.scrape();
 
-  // [NOTE]: Step 4 - Initialize Topcoder skills API
+  // [NOTE]: Step 4 - Initialize Topcoder skills API and fetch all skills
   progress.start('Initializing Topcoder skills API...');
   const skillsApi = new TopcoderSkillsAPI(cache);
   await skillsApi.initialize();
-  const cachedCount = skillsApi.getCachedSkillCount();
-  progress.succeed(cachedCount > 0 ? `Skills API ready (${cachedCount} cached)` : 'Skills API ready');
 
-  // [NOTE]: Step 5 - Extract technologies from GitHub data
+  // [NOTE]: Fetch all skills from API if cache is small (for better detection)
+  if (skillsApi.getCachedSkillCount() < 1000) {
+    progress.update('Fetching skills from API...');
+    await skillsApi.fetchAllSkills();
+  }
+
+  const cachedCount = skillsApi.getCachedSkillCount();
+  const skillNames = skillsApi.getAllSkillNames();
+  progress.succeed(`Skills API ready (${cachedCount} skills loaded)`);
+
+  // [NOTE]: Step 5 - Extract technologies from GitHub data using API skill names
   progress.start('Analyzing technologies...');
-  const techCounts = extractAllTechnologies(githubData);
+  const techCounts = extractAllTechnologies(githubData, skillNames);
   progress.succeed(`Found ${techCounts.size} unique technologies`);
 
   // [NOTE]: Step 6 - Match technologies to Topcoder skills

@@ -46,6 +46,9 @@ export class RepoAnalyzer {
         readme = readmeContent ?? undefined;
       }
 
+      // [NOTE]: Fetch root files for config detection (package.json, Dockerfile, etc.)
+      const rootFiles = await this.client.getRepoRootFiles(owner, repoName);
+
       const repoData: RepoData = {
         name: repo.name,
         fullName: repo.full_name,
@@ -60,6 +63,7 @@ export class RepoAnalyzer {
         createdAt: repo.created_at || '',
         updatedAt: repo.updated_at || '',
         readme,
+        rootFiles,
       };
 
       yield repoData;

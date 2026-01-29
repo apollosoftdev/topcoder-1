@@ -13,6 +13,7 @@ import {
   ProfileData,
 } from '../utils/cache';
 import { ProgressReporter } from '../output/progress';
+import { getSpecialFiles } from '../utils/config';
 import chalk from 'chalk';
 
 export interface ScraperOptions {
@@ -212,7 +213,46 @@ export class GitHubScraper {
   }
 }
 
-export function extractAllTechnologies(data: CollectedGitHubData): Map<string, number> {
+// [NOTE]: Extract technologies from repo root files (config file detection)
+function extractTechnologiesFromRootFiles(rootFiles: string[]): string[] {
+  const specialFiles = getSpecialFiles();
+  const technologies: string[] = [];
+
+  for (const file of rootFiles) {
+    const fileLower = file.toLowerCase();
+    for (const [pattern, tech] of Object.entries(specialFiles)) {
+      if (fileLower === pattern.toLowerCase() || fileLower.includes(pattern.toLowerCase())) {
+        technologies.push(tech as string);
+      }
+    }
+  }
+
+  return [...new Set(technologies)];
+}
+
+
+// [NOTE]: Find skills in text using API skill names (whole word matching)
+function findSkillsInText(text: string, skillNames: string[]): string[] {
+  const textLower = text.toLowerCase();
+  const foundSkills: string[] = [];
+
+  for (const skillName of skillNames) {
+    const skillLower = skillName.toLowerCase();
+    // Escape special regex characters and check for whole word match
+    const escaped = skillLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (regex.test(textLower)) {
+      foundSkills.push(skillName);
+    }
+  }
+
+  return foundSkills;
+}
+
+export function extractAllTechnologies(
+  data: CollectedGitHubData,
+  skillNames?: string[]
+): Map<string, number> {
   const techCounts = new Map<string, number>();
 
   const increment = (tech: string, count: number = 1) => {
@@ -234,6 +274,22 @@ export function extractAllTechnologies(data: CollectedGitHubData): Map<string, n
     for (const topic of repo.topics) {
       increment(topic, 2);
     }
+
+    // [NOTE]: Extract technologies from root files (config detection)
+    if (repo.rootFiles && repo.rootFiles.length > 0) {
+      const rootTechs = extractTechnologiesFromRootFiles(repo.rootFiles);
+      for (const tech of rootTechs) {
+        increment(tech, 3); // Config file detection is reliable
+      }
+    }
+
+    // [NOTE]: Extract technologies from README using API skill names
+    if (repo.readme && skillNames && skillNames.length > 0) {
+      const readmeTechs = findSkillsInText(repo.readme, skillNames);
+      for (const tech of readmeTechs) {
+        increment(tech, 1); // README mentions
+      }
+    }
   }
 
   for (const commit of data.commits) {
@@ -243,9 +299,10 @@ export function extractAllTechnologies(data: CollectedGitHubData): Map<string, n
     }
   }
 
+  // [NOTE]: Extract technologies from PRs using API skill names
   for (const pr of data.pullRequests) {
-    const techs = extractTechnologiesFromPR(pr.title, pr.body);
-    for (const tech of techs) {
+    const prTechs = extractTechnologiesFromPR(pr.title, pr.body, skillNames);
+    for (const tech of prTechs) {
       increment(tech, 2);
     }
   }

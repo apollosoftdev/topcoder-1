@@ -101,7 +101,7 @@ export class GitHubClient {
   async getUserOrganizations(username: string): Promise<string[]> {
     try {
       const { data } = await this.octokit.orgs.listForUser({ username, per_page: 100 });
-      return data.map(org => org.login);
+      return data.map((org: { login: string }) => org.login);
     } catch {
       return [];
     }
@@ -199,6 +199,19 @@ export class GitHubClient {
     }
   }
 
+  // [NOTE]: Get list of files in repo root directory for config file detection
+  async getRepoRootFiles(owner: string, repo: string): Promise<string[]> {
+    try {
+      const { data } = await this.octokit.repos.getContent({ owner, repo, path: '' });
+      if (Array.isArray(data)) {
+        return data.map(item => item.name);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
   async *paginateStarredRepos(options: { maxStars?: number }): AsyncGenerator<
     Awaited<ReturnType<typeof this.octokit.activity.listReposStarredByAuthenticatedUser>>['data'][0]
   > {
@@ -233,7 +246,7 @@ export class GitHubClient {
     try {
       const { data } = await this.octokit.repos.getCommit({ owner, repo, ref: sha });
       return {
-        files: (data.files || []).map(f => ({
+        files: (data.files || []).map((f: { filename?: string; additions?: number; deletions?: number }) => ({
           filename: f.filename || '',
           additions: f.additions || 0,
           deletions: f.deletions || 0,

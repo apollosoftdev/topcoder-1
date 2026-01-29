@@ -229,4 +229,57 @@ export class TopcoderSkillsAPI {
   isInitialized(): boolean {
     return this.initialized;
   }
+
+  // [NOTE]: Get all cached skill names (for text detection)
+  getAllSkillNames(): string[] {
+    return Array.from(this.skillCache.values()).map(skill => skill.name);
+  }
+
+  // [NOTE]: Fetch all skills from API and cache them
+  async fetchAllSkills(): Promise<void> {
+    try {
+      const apiUrl = buildApiUrl('/standardized-skills/skills', {
+        page: 1,
+        perPage: 10000, // Fetch all skills
+      });
+
+      const response = await fetch(apiUrl, {
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        console.log(chalk.yellow('Could not fetch all skills from API'));
+        return;
+      }
+
+      const data = await response.json() as TopcoderSkillResponse[];
+      const skills = data.map(item => this.toTopcoderSkill(item));
+      this.cacheSkills(skills);
+      console.log(chalk.gray(`Fetched ${skills.length} skills from API`));
+    } catch {
+      console.log(chalk.yellow('Error fetching all skills'));
+    }
+  }
+
+  // [NOTE]: Find skills mentioned in text (uses cached skill names)
+  findSkillsInText(text: string): string[] {
+    const textLower = text.toLowerCase();
+    const foundSkills: string[] = [];
+
+    for (const skill of this.skillCache.values()) {
+      const skillNameLower = skill.name.toLowerCase();
+      // Check for whole word match to avoid partial matches
+      const regex = new RegExp(`\\b${this.escapeRegex(skillNameLower)}\\b`, 'i');
+      if (regex.test(textLower)) {
+        foundSkills.push(skill.name);
+      }
+    }
+
+    return foundSkills;
+  }
+
+  // [NOTE]: Escape special regex characters
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 }
