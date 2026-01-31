@@ -98,7 +98,17 @@ export class ScoringEngine {
   ): ScoredSkill {
     const skillTerms = match.matchedTerms.map(t => t.toLowerCase());
     const skillName = match.skill.name.toLowerCase();
-    const allTerms = [...new Set([skillName, ...skillTerms])];
+
+    // [NOTE]: For inferred skills, include the source skills in evidence search
+    // e.g., "Web Development" inferred from "React" should also search for "React"
+    const inferredTerms = match.inferredFrom
+      ? match.inferredFrom.flatMap(source =>
+          // Handle "(category)" suffix and split comma-separated sources
+          source.replace(/\s*\(category\)\s*$/, '').split(',').map(s => s.trim().toLowerCase())
+        )
+      : [];
+
+    const allTerms = [...new Set([skillName, ...skillTerms, ...inferredTerms])];
 
     // [NOTE]: Calculate each component score (0-100)
     const languageScore = this.calculateLanguageScore(

@@ -260,13 +260,15 @@ describe('getTopScoredSkills', () => {
     expect(top5).toHaveLength(5);
   });
 
-  it('should default to 20 results', () => {
+  it('should return all skills above threshold when limit is disabled (default)', () => {
+    // [NOTE]: enableSkillLimit is false by default in config, so all skills above threshold are returned
     const skills = Array.from({ length: 30 }, (_, i) =>
       createScoredSkill(50 + i, `Skill${i}`)
     );
 
     const top = getTopScoredSkills(skills);
 
-    expect(top).toHaveLength(20);
+    // All 30 skills are above minScoreThreshold (15), so all should be returned
+    expect(top).toHaveLength(30);
   });
 });
