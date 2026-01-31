@@ -122,10 +122,12 @@ Usage: tc-skills [options] [command]
 
 Options:
   -V, --version                    output the version number
-  --max-repos <number>             Maximum repositories to analyze (default: 100)
+  --max-repos <number>             Maximum repositories to analyze (default: 500)
   --max-commits-per-repo <number>  Maximum commits per repository (default: 200)
+  --max-prs-per-repo <number>      Maximum PRs per repository (default: 50)
   --include-prs <boolean>          Analyze pull requests (default: true)
   --include-stars <boolean>        Include starred repos for interest signals (default: true)
+  --include-org-repos <boolean>    Include organization repositories (default: true)
   --output <format>                Output format: text, json (default: text)
   --resume                         Resume from previous interrupted run
   --verbose                        Show detailed progress
@@ -135,6 +137,8 @@ Commands:
   clear-cache                      Clear all cached data including saved tokens
   status                           Show current authentication and cache status
 ```
+
+All default values are configurable in `config/constants.json` under the `github` section.
 
 ### Commands
 
@@ -376,6 +380,78 @@ const ALLOWED_GITHUB_HOSTS = ['api.github.com', 'github.com', 'uploads.github.co
 // Topcoder API - only allowed hosts
 const ALLOWED_TOPCODER_HOSTS = ['api.topcoder.com', 'api.topcoder-dev.com'];
 ```
+
+## Troubleshooting
+
+### Organization Repositories Not Being Analyzed
+
+**Symptom:** Your organization repositories (e.g., repos from `Cova-Inc`) are not being analyzed, even though you have access to them.
+
+**Cause:** The OAuth token was created before the `read:org` scope was added. The required scopes are:
+- `read:user` - Read user profile
+- `repo` - Access private repositories
+- `read:org` - List organization memberships (required for org repos)
+
+**Solution:** Re-authenticate to get a new token with all required scopes:
+
+```bash
+# Step 1: Clear the old token
+npm start -- clear-cache
+
+# Step 2: Re-authenticate with new scopes
+npm start -- --verbose
+```
+
+After re-authentication, your organization repos should be visible and analyzed.
+
+### React/Other Skills Not Detected
+
+**Symptom:** You use React heavily but it doesn't appear in your skill recommendations.
+
+**Possible Causes:**
+
+1. **Repos sorted by update date** - If your React repos haven't been updated recently, they might be beyond the `maxRepos` limit
+
+   **Solution:** Increase the limit:
+   ```bash
+   npm start -- --max-repos 500
+   ```
+
+2. **Missing GitHub topics** - React is detected from repo topics, language stats, and config files
+
+   **Solution:** Add the `react` topic to your React repositories on GitHub
+
+3. **Primary language mismatch** - GitHub might detect the primary language as "JavaScript" or "TypeScript" instead of recognizing React
+
+   **Solution:** The tool also detects React from:
+   - `package.json` dependencies
+   - Repository topics
+   - README content
+   - Commit messages mentioning React
+
+### Rate Limit Errors
+
+**Symptom:** The tool stops with rate limit errors.
+
+**Solution:** The tool automatically handles rate limits by pausing and resuming. If interrupted:
+
+```bash
+# Resume from where you left off
+npm start -- --resume
+```
+
+### Cache Issues
+
+If you encounter unexpected behavior, try clearing all cached data:
+
+```bash
+npm start -- clear-cache
+```
+
+This clears:
+- Saved OAuth tokens
+- Cached Topcoder skills
+- Saved progress from interrupted runs
 
 ## License
 
