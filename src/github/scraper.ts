@@ -126,7 +126,7 @@ export class GitHubScraper {
 
   private async fetchProfile(): Promise<ProfileData> {
     const user = await this.client.getAuthenticatedUser();
-    const orgs = await this.client.getUserOrganizations(user.login);
+    const orgs = await this.client.getUserOrganizations();
 
     return {
       bio: user.bio,

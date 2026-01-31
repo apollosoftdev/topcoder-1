@@ -112,9 +112,12 @@ export class GitHubClient {
     };
   }
 
-  async getUserOrganizations(username: string): Promise<string[]> {
+  // [NOTE]: Get organizations for the authenticated user (includes private orgs)
+  async getUserOrganizations(): Promise<string[]> {
     try {
-      const { data } = await this.octokit.orgs.listForUser({ username, per_page: 100 });
+      // [!IMPORTANT]: Use listForAuthenticatedUser to get ALL orgs including private ones
+      // listForUser only returns public org memberships
+      const { data } = await this.octokit.orgs.listForAuthenticatedUser({ per_page: 100 });
       return data.map((org: { login: string }) => org.login);
     } catch {
       return [];
