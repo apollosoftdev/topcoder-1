@@ -1,10 +1,40 @@
 import { CollectedGitHubData } from '../utils/cache';
-import { getEvidenceConfig, areTermsAliases } from '../utils/config';
+import { getEvidenceConfig, areTermsAliases, getSpecialFiles, getFileExtensions } from '../utils/config';
 import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Check if two terms match (exact, normalized, or aliases) - uses config/constants.json
 function termsMatch(term1: string, term2: string): boolean {
   return areTermsAliases(term1, term2);
+}
+
+// [NOTE]: Check if a file indicates a specific technology (for root file evidence)
+function fileIndicatesTechnology(filename: string, terms: string[]): boolean {
+  const specialFiles = getSpecialFiles();
+  const fileLower = filename.toLowerCase();
+
+  for (const term of terms) {
+    const termLower = term.toLowerCase();
+    // Check special files mapping (e.g., Dockerfile -> Docker)
+    for (const [pattern, tech] of Object.entries(specialFiles)) {
+      if ((fileLower === pattern.toLowerCase() || fileLower.includes(pattern.toLowerCase())) &&
+          termsMatch(termLower, (tech as string).toLowerCase())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// [NOTE]: Check if a file matches skill by extension
+function fileMatchesSkillByExtension(filename: string, terms: string[]): boolean {
+  const fileLower = filename.toLowerCase();
+  for (const term of terms) {
+    const extensions = getFileExtensions(term);
+    if (extensions.some(ext => fileLower.endsWith(ext.toLowerCase()))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export interface Evidence {
@@ -63,9 +93,26 @@ function collectRepoEvidence(
         repo.language?.toLowerCase(),
         ...Object.keys(repo.languages).map(l => l.toLowerCase()),
         ...repo.topics.map(t => t.toLowerCase()),
-      ].filter((rt): rt is string => rt !== undefined); // [NOTE]: Filter out undefined
-      // Use exact/normalized matching to prevent "java" matching "javascript"
-      return terms.some(t => repoTerms.some(rt => termsMatch(t, rt)));
+      ].filter((rt): rt is string => rt !== undefined);
+
+      // [NOTE]: Check 1 - language/topic match
+      const hasLanguageMatch = terms.some(t => repoTerms.some(rt => termsMatch(t, rt)));
+      if (hasLanguageMatch) return true;
+
+      // [NOTE]: Check 2 - root files indicate technology (e.g., Dockerfile -> Docker)
+      if (repo.rootFiles && repo.rootFiles.length > 0) {
+        const hasRootFileMatch = repo.rootFiles.some(file => fileIndicatesTechnology(file, terms));
+        if (hasRootFileMatch) return true;
+      }
+
+      // [NOTE]: Check 3 - README mentions technology (whole word match)
+      if (repo.readme) {
+        const readmeLower = repo.readme.toLowerCase();
+        const hasReadmeMatch = terms.some(t => isWholeWordMatch(readmeLower, t.toLowerCase()));
+        if (hasReadmeMatch) return true;
+      }
+
+      return false;
     })
     .sort((a, b) => b.stars - a.stars);
 
@@ -121,8 +168,14 @@ function collectCommitEvidence(
 
   for (const commit of data.commits) {
     const messageLower = commit.message.toLowerCase();
-    // Use whole word matching to prevent "java" matching "javascript"
-    if (terms.some(t => isWholeWordMatch(messageLower, t.toLowerCase()))) {
+
+    // [NOTE]: Check 1 - commit message mentions technology (whole word match)
+    const hasMessageMatch = terms.some(t => isWholeWordMatch(messageLower, t.toLowerCase()));
+
+    // [NOTE]: Check 2 - commit files match skill by extension (e.g., .ts files for TypeScript)
+    const hasFileMatch = commit.filesChanged.some(file => fileMatchesSkillByExtension(file, terms));
+
+    if (hasMessageMatch || hasFileMatch) {
       const count = repoCommitCounts.get(commit.repo) || 0;
       repoCommitCounts.set(commit.repo, count + 1);
     }
