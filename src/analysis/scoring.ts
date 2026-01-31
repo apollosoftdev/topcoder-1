@@ -33,6 +33,7 @@ export interface ScoredSkill {
   components: ScoreComponents;
   evidence: Evidence[];
   explanation: string;
+  inferredFrom?: string[]; // [NEW]: Skills this was inferred from (hierarchy/category)
 }
 
 // [NOTE]: Breakdown of how the score was calculated
@@ -145,6 +146,7 @@ export class ScoringEngine {
       components,
       evidence,
       explanation,
+      inferredFrom: match.inferredFrom,
     };
   }
 

@@ -1,10 +1,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+// [NOTE]: Skill hierarchy entry - defines implied/related skills
+export interface SkillHierarchyEntry {
+  implies: string[];      // Skills that this skill implies (e.g., "React Native" implies "React")
+  weight?: number;        // Weight multiplier for implied skills (default: 0.7)
+}
+
 // [NOTE]: Constants configuration loaded from config/constants.json
 export interface ConstantsConfig {
   shortTermExpansions: Record<string, string>;
   languageAliases: Record<string, string[]>;
+  skillHierarchy?: Record<string, SkillHierarchyEntry>;  // [NEW]: Skill hierarchy for transitive inference
+  categoryInference?: {
+    enabled: boolean;     // Whether to infer category as a skill
+    weight: number;       // Weight multiplier for category skills (default: 0.5)
+  };
   scoring: {
     weights: {
       language: number;
@@ -165,5 +176,33 @@ export function areTermsAliases(term1: string, term2: string): boolean {
   }
 
   return false;
+}
+
+// [NOTE]: Get skill hierarchy mapping for transitive inference
+export function getSkillHierarchy(): Record<string, SkillHierarchyEntry> {
+  const config = loadSkillsConfig();
+  return config.skillHierarchy || {};
+}
+
+// [NOTE]: Get implied skills for a given skill name
+export function getImpliedSkills(skillName: string): { skill: string; weight: number }[] {
+  const hierarchy = getSkillHierarchy();
+  const skillLower = skillName.toLowerCase();
+
+  // Find matching hierarchy entry (case-insensitive)
+  for (const [key, entry] of Object.entries(hierarchy)) {
+    if (key.toLowerCase() === skillLower) {
+      const weight = entry.weight ?? 0.7;
+      return entry.implies.map(s => ({ skill: s, weight }));
+    }
+  }
+
+  return [];
+}
+
+// [NOTE]: Get category inference configuration
+export function getCategoryInferenceConfig(): { enabled: boolean; weight: number } {
+  const config = loadSkillsConfig();
+  return config.categoryInference || { enabled: true, weight: 0.5 };
 }
 

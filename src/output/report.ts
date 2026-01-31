@@ -22,6 +22,7 @@ export interface SkillReportEntry {
   score: number;
   explanation: string;
   evidence: string[];
+  inferredFrom?: string[];  // [NEW]: Skills this was inferred from
 }
 
 export interface RunSummary {
@@ -59,6 +60,7 @@ export class ReportGenerator {
       score: skill.score,
       explanation: skill.explanation,
       evidence: formatEvidenceCompact(skill.evidence),
+      inferredFrom: skill.inferredFrom,
     }));
 
     const summary: RunSummary = {
@@ -100,6 +102,10 @@ export class ReportGenerator {
 
         if (skill.category) {
           lines.push(`  ${chalk.gray(`Category: ${skill.category}`)}`);
+        }
+
+        if (skill.inferredFrom && skill.inferredFrom.length > 0) {
+          lines.push(`  ${chalk.magenta(`Inferred from: ${skill.inferredFrom.join(', ')}`)}`);
         }
 
         lines.push(`  ${chalk.italic(skill.explanation)}`);

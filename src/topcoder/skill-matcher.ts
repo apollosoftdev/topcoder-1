@@ -1,6 +1,6 @@
 import { TopcoderSkillsAPI } from './skills-api';
 import { TopcoderSkill } from '../utils/cache';
-import { loadSkillsConfig } from '../utils/config';
+import { loadSkillsConfig, getImpliedSkills, getCategoryInferenceConfig } from '../utils/config';
 import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Intermediate result before scoring
@@ -8,6 +8,7 @@ export interface MatchedSkill {
   skill: TopcoderSkill;
   matchedTerms: string[]; // [NOTE]: GitHub terms that matched this skill
   rawScore: number; // [NOTE]: Weighted count before normalization
+  inferredFrom?: string[]; // [NEW]: Skills this was inferred from (hierarchy/category)
 }
 
 export class SkillMatcher {
@@ -19,9 +20,56 @@ export class SkillMatcher {
 
   // [!IMPORTANT]: Main matching function - maps tech terms to Topcoder skills via API
   async matchTechnologies(techCounts: Map<string, number>): Promise<MatchedSkill[]> {
-    const skillScores: Map<string, { skill: TopcoderSkill; score: number; terms: string[] }> = new Map();
+    const skillScores: Map<string, { skill: TopcoderSkill; score: number; terms: string[]; inferredFrom: string[] }> = new Map();
 
-    // [NOTE]: Process each technology term
+    // [NOTE]: Local cache to avoid duplicate API searches within this call
+    const searchCache: Map<string, TopcoderSkill | null> = new Map();
+
+    // [NOTE]: Helper to search with local caching
+    const cachedSearch = async (term: string): Promise<TopcoderSkill | null> => {
+      const cacheKey = term.toLowerCase();
+      if (searchCache.has(cacheKey)) {
+        return searchCache.get(cacheKey) || null;
+      }
+
+      const results = await this.skillsApi.searchSkillsAsync(term);
+      const skill = results.length > 0 ? results[0] : null;
+      searchCache.set(cacheKey, skill);
+      return skill;
+    };
+
+    // [NOTE]: Helper to add or update a skill score
+    const addSkillScore = (
+      skill: TopcoderSkill,
+      score: number,
+      term: string,
+      inferredFrom?: string
+    ) => {
+      const skillKey = skill.id;
+      const existing = skillScores.get(skillKey);
+
+      if (existing) {
+        existing.score += score;
+        if (!existing.terms.includes(term)) {
+          existing.terms.push(term);
+        }
+        if (inferredFrom && !existing.inferredFrom.includes(inferredFrom)) {
+          existing.inferredFrom.push(inferredFrom);
+        }
+      } else {
+        skillScores.set(skillKey, {
+          skill,
+          score,
+          terms: [term],
+          inferredFrom: inferredFrom ? [inferredFrom] : [],
+        });
+      }
+    };
+
+    // [NOTE]: Track matched skills for hierarchy/category inference
+    const directlyMatchedSkills: { skill: TopcoderSkill; term: string; count: number }[] = [];
+
+    // [NOTE]: Phase 1 - Direct matching: Process each technology term
     for (const [tech, count] of techCounts.entries()) {
       // [NOTE]: Expand short terms before searching
       const searchTerm = this.expandTerm(tech);
@@ -29,39 +77,93 @@ export class SkillMatcher {
       // [NOTE]: Skip very short or generic terms
       if (searchTerm.length < 2) continue;
 
-      // [NOTE]: Search via API (autocomplete + fuzzymatch)
-      const searchResults = await this.skillsApi.searchSkillsAsync(searchTerm);
+      // [NOTE]: Search via API with local caching
+      const bestMatch = await cachedSearch(searchTerm);
 
-      if (searchResults.length > 0) {
-        const bestMatch = searchResults[0];
+      if (bestMatch && this.isReasonableMatch(searchTerm, bestMatch.name)) {
+        addSkillScore(bestMatch, count, tech);
+        directlyMatchedSkills.push({ skill: bestMatch, term: tech, count });
+      }
+    }
 
-        // [NOTE]: Validate the match is reasonable
-        if (this.isReasonableMatch(searchTerm, bestMatch.name)) {
-          const skillKey = bestMatch.id; // [NOTE]: Use ID as key to avoid duplicates
-          const existing = skillScores.get(skillKey);
+    // [NOTE]: Phase 2 - Hierarchy inference: Add implied skills from hierarchy
+    // Collect all unique implied skills first to batch and deduplicate
+    const impliedSkillsToSearch: Map<string, { sources: string[]; totalWeight: number }> = new Map();
+
+    for (const { skill, count } of directlyMatchedSkills) {
+      const impliedSkills = getImpliedSkills(skill.name);
+
+      for (const { skill: impliedSkillName, weight } of impliedSkills) {
+        const key = impliedSkillName.toLowerCase();
+        const existing = impliedSkillsToSearch.get(key);
+        const weightedScore = count * weight;
+
+        if (existing) {
+          existing.totalWeight += weightedScore;
+          if (!existing.sources.includes(skill.name)) {
+            existing.sources.push(skill.name);
+          }
+        } else {
+          impliedSkillsToSearch.set(key, {
+            sources: [skill.name],
+            totalWeight: weightedScore,
+          });
+        }
+      }
+    }
+
+    // [NOTE]: Search for implied skills (deduplicated)
+    for (const [impliedSkillName, { sources, totalWeight }] of impliedSkillsToSearch.entries()) {
+      const impliedSkill = await cachedSearch(impliedSkillName);
+
+      if (impliedSkill && this.isReasonableMatch(impliedSkillName, impliedSkill.name)) {
+        addSkillScore(impliedSkill, totalWeight, impliedSkillName, sources.join(', '));
+      }
+    }
+
+    // [NOTE]: Phase 3 - Category inference: Add category as a skill
+    const categoryConfig = getCategoryInferenceConfig();
+    if (categoryConfig.enabled) {
+      // Collect unique categories first
+      const categoriesToSearch: Map<string, { sources: string[]; totalWeight: number }> = new Map();
+
+      for (const { skill, count } of directlyMatchedSkills) {
+        if (skill.category) {
+          const key = skill.category.toLowerCase();
+          const existing = categoriesToSearch.get(key);
+          const weightedScore = count * categoryConfig.weight;
 
           if (existing) {
-            existing.score += count;
-            if (!existing.terms.includes(tech)) {
-              existing.terms.push(tech);
+            existing.totalWeight += weightedScore;
+            if (!existing.sources.includes(skill.name)) {
+              existing.sources.push(skill.name);
             }
           } else {
-            skillScores.set(skillKey, {
-              skill: bestMatch,
-              score: count,
-              terms: [tech],
+            categoriesToSearch.set(key, {
+              sources: [skill.name],
+              totalWeight: weightedScore,
             });
           }
+        }
+      }
+
+      // Search for category skills (deduplicated)
+      for (const [categoryName, { sources, totalWeight }] of categoriesToSearch.entries()) {
+        const categorySkill = await cachedSearch(categoryName);
+
+        if (categorySkill && this.isReasonableMatch(categoryName, categorySkill.name)) {
+          addSkillScore(categorySkill, totalWeight, categoryName, `${sources.join(', ')} (category)`);
         }
       }
     }
 
     // [NOTE]: Convert to MatchedSkill array
     const matchedSkills: MatchedSkill[] = Array.from(skillScores.values()).map(
-      ({ skill, score, terms }) => ({
+      ({ skill, score, terms, inferredFrom }) => ({
         skill,
         matchedTerms: terms,
         rawScore: score,
+        inferredFrom: inferredFrom.length > 0 ? inferredFrom : undefined,
       })
     );
 

@@ -496,5 +496,381 @@
     "prLimit": 2,
     "commitLimit": 2,
     "starLimit": 1
+  },
+
+  "categoryInference": {
+    "enabled": true,
+    "weight": 0.5
+  },
+
+  "skillHierarchy": {
+    "React Native": {
+      "implies": ["React", "JavaScript", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "React": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Vue.js": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Angular": {
+      "implies": ["TypeScript", "JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Next.js": {
+      "implies": ["React", "JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "Nuxt": {
+      "implies": ["Vue.js", "JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "Gatsby": {
+      "implies": ["React", "JavaScript", "GraphQL", "Web Development"],
+      "weight": 0.7
+    },
+    "Remix": {
+      "implies": ["React", "JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "SvelteKit": {
+      "implies": ["Svelte", "JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Svelte": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Flutter": {
+      "implies": ["Dart", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "SwiftUI": {
+      "implies": ["Swift", "iOS Development", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "Kotlin Multiplatform": {
+      "implies": ["Kotlin", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "Jetpack Compose": {
+      "implies": ["Kotlin", "Android Development", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "Express": {
+      "implies": ["JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "NestJS": {
+      "implies": ["TypeScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "Fastify": {
+      "implies": ["JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "Koa": {
+      "implies": ["JavaScript", "Node.js", "Web Development"],
+      "weight": 0.7
+    },
+    "Django": {
+      "implies": ["Python", "Web Development"],
+      "weight": 0.7
+    },
+    "Flask": {
+      "implies": ["Python", "Web Development"],
+      "weight": 0.7
+    },
+    "FastAPI": {
+      "implies": ["Python", "Web Development"],
+      "weight": 0.7
+    },
+    "Ruby on Rails": {
+      "implies": ["Ruby", "Web Development"],
+      "weight": 0.7
+    },
+    "Spring Boot": {
+      "implies": ["Java", "Web Development"],
+      "weight": 0.7
+    },
+    "Spring": {
+      "implies": ["Java", "Web Development"],
+      "weight": 0.7
+    },
+    "ASP.NET": {
+      "implies": ["C#", ".NET", "Web Development"],
+      "weight": 0.7
+    },
+    "ASP.NET Core": {
+      "implies": ["C#", ".NET", "Web Development"],
+      "weight": 0.7
+    },
+    "Laravel": {
+      "implies": ["PHP", "Web Development"],
+      "weight": 0.7
+    },
+    "Symfony": {
+      "implies": ["PHP", "Web Development"],
+      "weight": 0.7
+    },
+    "Phoenix": {
+      "implies": ["Elixir", "Web Development"],
+      "weight": 0.7
+    },
+    "Gin": {
+      "implies": ["Go", "Web Development"],
+      "weight": 0.7
+    },
+    "Echo": {
+      "implies": ["Go", "Web Development"],
+      "weight": 0.7
+    },
+    "Fiber": {
+      "implies": ["Go", "Web Development"],
+      "weight": 0.7
+    },
+    "Actix": {
+      "implies": ["Rust", "Web Development"],
+      "weight": 0.7
+    },
+    "Rocket": {
+      "implies": ["Rust", "Web Development"],
+      "weight": 0.7
+    },
+    "TensorFlow": {
+      "implies": ["Python", "Machine Learning and AI", "Deep Learning"],
+      "weight": 0.7
+    },
+    "PyTorch": {
+      "implies": ["Python", "Machine Learning and AI", "Deep Learning"],
+      "weight": 0.7
+    },
+    "Keras": {
+      "implies": ["Python", "Machine Learning and AI", "Deep Learning"],
+      "weight": 0.7
+    },
+    "scikit-learn": {
+      "implies": ["Python", "Machine Learning and AI"],
+      "weight": 0.7
+    },
+    "Pandas": {
+      "implies": ["Python", "Data Analysis and Big Data"],
+      "weight": 0.7
+    },
+    "NumPy": {
+      "implies": ["Python", "Data Analysis and Big Data"],
+      "weight": 0.7
+    },
+    "Jupyter": {
+      "implies": ["Python", "Data Analysis and Big Data"],
+      "weight": 0.7
+    },
+    "Kubernetes": {
+      "implies": ["Docker", "DevOps and Automation", "Cloud Computing"],
+      "weight": 0.7
+    },
+    "Helm": {
+      "implies": ["Kubernetes", "DevOps and Automation"],
+      "weight": 0.7
+    },
+    "Terraform": {
+      "implies": ["DevOps and Automation", "Cloud Computing"],
+      "weight": 0.7
+    },
+    "Ansible": {
+      "implies": ["DevOps and Automation"],
+      "weight": 0.7
+    },
+    "Pulumi": {
+      "implies": ["DevOps and Automation", "Cloud Computing"],
+      "weight": 0.7
+    },
+    "AWS Lambda": {
+      "implies": ["AWS", "Cloud Computing", "Serverless"],
+      "weight": 0.7
+    },
+    "AWS CDK": {
+      "implies": ["AWS", "Cloud Computing", "TypeScript"],
+      "weight": 0.7
+    },
+    "Serverless Framework": {
+      "implies": ["Cloud Computing", "Serverless"],
+      "weight": 0.7
+    },
+    "GraphQL": {
+      "implies": ["Web Development"],
+      "weight": 0.7
+    },
+    "Apollo": {
+      "implies": ["GraphQL", "Web Development"],
+      "weight": 0.7
+    },
+    "Prisma": {
+      "implies": ["TypeScript", "Database Management"],
+      "weight": 0.7
+    },
+    "TypeORM": {
+      "implies": ["TypeScript", "Database Management"],
+      "weight": 0.7
+    },
+    "Sequelize": {
+      "implies": ["JavaScript", "Database Management"],
+      "weight": 0.7
+    },
+    "Mongoose": {
+      "implies": ["JavaScript", "MongoDB", "Database Management"],
+      "weight": 0.7
+    },
+    "Jest": {
+      "implies": ["JavaScript", "Software Testing and Quality Assurance"],
+      "weight": 0.7
+    },
+    "Mocha": {
+      "implies": ["JavaScript", "Software Testing and Quality Assurance"],
+      "weight": 0.7
+    },
+    "Cypress": {
+      "implies": ["JavaScript", "Software Testing and Quality Assurance"],
+      "weight": 0.7
+    },
+    "Playwright": {
+      "implies": ["JavaScript", "Software Testing and Quality Assurance"],
+      "weight": 0.7
+    },
+    "Selenium": {
+      "implies": ["Software Testing and Quality Assurance"],
+      "weight": 0.7
+    },
+    "Storybook": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Tailwind CSS": {
+      "implies": ["CSS", "Web Development"],
+      "weight": 0.7
+    },
+    "Bootstrap": {
+      "implies": ["CSS", "Web Development"],
+      "weight": 0.7
+    },
+    "Material UI": {
+      "implies": ["React", "Web Development"],
+      "weight": 0.7
+    },
+    "Chakra UI": {
+      "implies": ["React", "Web Development"],
+      "weight": 0.7
+    },
+    "Webpack": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Vite": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "Rollup": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "esbuild": {
+      "implies": ["JavaScript", "Web Development"],
+      "weight": 0.7
+    },
+    "GitHub Actions": {
+      "implies": ["DevOps and Automation", "CI/CD"],
+      "weight": 0.7
+    },
+    "GitLab CI": {
+      "implies": ["DevOps and Automation", "CI/CD"],
+      "weight": 0.7
+    },
+    "Jenkins": {
+      "implies": ["DevOps and Automation", "CI/CD"],
+      "weight": 0.7
+    },
+    "CircleCI": {
+      "implies": ["DevOps and Automation", "CI/CD"],
+      "weight": 0.7
+    },
+    "Electron": {
+      "implies": ["JavaScript", "Node.js"],
+      "weight": 0.7
+    },
+    "Tauri": {
+      "implies": ["Rust", "JavaScript"],
+      "weight": 0.7
+    },
+    "Unity": {
+      "implies": ["C#", "Game Development"],
+      "weight": 0.7
+    },
+    "Unreal Engine": {
+      "implies": ["C++", "Game Development"],
+      "weight": 0.7
+    },
+    "Godot Engine": {
+      "implies": ["Game Development"],
+      "weight": 0.7
+    },
+    "OpenCV": {
+      "implies": ["Computer Vision", "Machine Learning and AI"],
+      "weight": 0.7
+    },
+    "Solidity": {
+      "implies": ["Blockchain", "Ethereum"],
+      "weight": 0.7
+    },
+    "Hardhat": {
+      "implies": ["Blockchain", "Ethereum", "JavaScript"],
+      "weight": 0.7
+    },
+    "Foundry": {
+      "implies": ["Blockchain", "Ethereum", "Solidity"],
+      "weight": 0.7
+    },
+    "Redis": {
+      "implies": ["Database Management"],
+      "weight": 0.7
+    },
+    "Elasticsearch": {
+      "implies": ["Database Management", "Data Analysis and Big Data"],
+      "weight": 0.7
+    },
+    "MongoDB": {
+      "implies": ["Database Management"],
+      "weight": 0.7
+    },
+    "PostgreSQL": {
+      "implies": ["Database Management", "SQL"],
+      "weight": 0.7
+    },
+    "MySQL": {
+      "implies": ["Database Management", "SQL"],
+      "weight": 0.7
+    },
+    "SQLite": {
+      "implies": ["Database Management", "SQL"],
+      "weight": 0.7
+    },
+    "Cassandra": {
+      "implies": ["Database Management", "Big Data"],
+      "weight": 0.7
+    },
+    "DynamoDB": {
+      "implies": ["AWS", "Database Management"],
+      "weight": 0.7
+    },
+    "Firebase": {
+      "implies": ["Cloud Computing", "Mobile App Development"],
+      "weight": 0.7
+    },
+    "Supabase": {
+      "implies": ["PostgreSQL", "Cloud Computing"],
+      "weight": 0.7
+    }
   }
 }
