@@ -13,7 +13,7 @@ import {
   ProfileData,
 } from '../utils/cache';
 import { ProgressReporter } from '../output/progress';
-import { getSpecialFiles } from '../utils/config';
+import { getSpecialFiles, getGitHubConfig } from '../utils/config';
 import { isWholeWordMatch } from '../utils/string-utils';
 import chalk from 'chalk';
 
@@ -23,6 +23,7 @@ export interface ScraperOptions {
   maxPRsPerRepo: number;
   includeStars: boolean;
   includePRs: boolean;
+  includeOrgRepos: boolean;
   includeReadme: boolean;
   resume: boolean;
   verbose: boolean;
@@ -85,6 +86,19 @@ export class GitHubScraper {
     collectedData.commits = [...collectedData.commits, ...commits];
     collectedData.pullRequests = [...collectedData.pullRequests, ...prs];
     this.progress.succeed(`Analyzed ${repos.length} repositories`);
+
+    // [NOTE]: Fetch organization repos if enabled
+    if (this.options.includeOrgRepos && collectedData.profile?.organizations) {
+      const orgs = collectedData.profile.organizations;
+      if (orgs.length > 0) {
+        this.progress.start(`Analyzing organization repositories (${orgs.length} orgs)...`);
+        const orgResult = await this.analyzeOrgRepositories(orgs, processedRepos);
+        collectedData.repos = [...collectedData.repos, ...orgResult.repos];
+        collectedData.commits = [...collectedData.commits, ...orgResult.commits];
+        collectedData.pullRequests = [...collectedData.pullRequests, ...orgResult.prs];
+        this.progress.succeed(`Analyzed ${orgResult.repos.length} organization repositories`);
+      }
+    }
 
     collectedData.languages = aggregateLanguages(collectedData.repos);
 
@@ -183,11 +197,104 @@ export class GitHubScraper {
     return { repos, commits, prs };
   }
 
+  // [NOTE]: Analyze repositories from user's organizations
+  private async analyzeOrgRepositories(
+    orgs: string[],
+    processedRepos: Set<string>
+  ): Promise<{
+    repos: RepoData[];
+    commits: CollectedGitHubData['commits'];
+    prs: CollectedGitHubData['pullRequests'];
+  }> {
+    const repos: RepoData[] = [];
+    const commits: CollectedGitHubData['commits'] = [];
+    const prs: CollectedGitHubData['pullRequests'] = [];
+
+    const commitAnalyzer = new CommitAnalyzer(this.client, {
+      maxCommitsPerRepo: this.options.maxCommitsPerRepo,
+      verbose: this.options.verbose,
+    });
+
+    const prAnalyzer = new PRAnalyzer(this.client, {
+      maxPRsPerRepo: this.options.maxPRsPerRepo,
+      verbose: this.options.verbose,
+    });
+
+    // [NOTE]: Calculate repos per org to stay within maxRepos limit
+    const reposPerOrg = Math.ceil(this.options.maxRepos / orgs.length);
+    let totalOrgRepos = 0;
+
+    for (const org of orgs) {
+      if (totalOrgRepos >= this.options.maxRepos) break;
+
+      let orgRepoCount = 0;
+      for await (const repo of this.client.paginateOrgRepos(org, { maxRepos: reposPerOrg })) {
+        if (processedRepos.has(repo.full_name)) {
+          if (this.options.verbose) {
+            console.log(chalk.gray(`  Skipping already processed org repo: ${repo.full_name}`));
+          }
+          continue;
+        }
+
+        if (totalOrgRepos >= this.options.maxRepos) break;
+
+        totalOrgRepos++;
+        orgRepoCount++;
+        this.progress.update(`Analyzing org ${org}: ${orgRepoCount} repos`);
+
+        const [owner, repoName] = repo.full_name.split('/');
+        const languages = await this.client.getRepoLanguages(owner, repoName);
+        const rootFiles = await this.client.getRepoRootFiles(owner, repoName);
+
+        let readme: string | undefined;
+        if (this.options.includeReadme) {
+          const readmeContent = await this.client.getRepoReadme(owner, repoName);
+          readme = readmeContent ?? undefined;
+        }
+
+        const repoData: RepoData = {
+          name: repo.name,
+          fullName: repo.full_name,
+          url: repo.html_url,
+          description: repo.description ?? null,
+          language: repo.language ?? null,
+          languages,
+          topics: repo.topics || [],
+          stars: repo.stargazers_count ?? 0,
+          forks: repo.forks_count ?? 0,
+          isOwner: false, // [NOTE]: Org repos are not owned by user
+          createdAt: repo.created_at || '',
+          updatedAt: repo.updated_at || '',
+          readme,
+          rootFiles,
+        };
+
+        repos.push(repoData);
+        processedRepos.add(repo.full_name);
+
+        // [NOTE]: Analyze commits
+        for await (const commit of commitAnalyzer.analyzeCommits(repo.full_name)) {
+          commits.push(commit);
+        }
+
+        // [NOTE]: Analyze PRs
+        if (this.options.includePRs) {
+          for await (const pr of prAnalyzer.analyzePullRequests(repo.full_name)) {
+            prs.push(pr);
+          }
+        }
+      }
+    }
+
+    return { repos, commits, prs };
+  }
+
   private async fetchStarredRepos(): Promise<StarredRepo[]> {
     const stars: StarredRepo[] = [];
     let count = 0;
+    const ghConfig = getGitHubConfig();
 
-    for await (const repo of this.client.paginateStarredRepos({ maxStars: 100 })) {
+    for await (const repo of this.client.paginateStarredRepos({ maxStars: ghConfig.maxStars })) {
       count++;
       this.progress.update(`Fetching starred repos: ${count}`);
 

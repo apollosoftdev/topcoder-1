@@ -16,13 +16,16 @@ import { ScoringEngine, getTopScoredSkills } from './analysis/scoring';
 import { Cache } from './utils/cache';
 import { ProgressReporter } from './output/progress';
 import { printReport } from './output/report';
+import { getGitHubConfig } from './utils/config';
 
 // [NOTE]: CLI options parsed from command line flags
 interface CLIOptions {
   maxRepos: number;
   maxCommitsPerRepo: number;
+  maxPRsPerRepo: number;
   includePrs: boolean;
   includeStars: boolean;
+  includeOrgRepos: boolean;
   output: 'text' | 'json';
   resume: boolean;
   verbose: boolean;
@@ -30,15 +33,20 @@ interface CLIOptions {
 
 const program = new Command();
 
+// [NOTE]: Load default values from config
+const defaultGitHubConfig = getGitHubConfig();
+
 // [!IMPORTANT]: CLI configuration and available commands
 program
   .name('tc-skills')
   .description('Import your GitHub skills into Topcoder')
   .version('1.0.0')
-  .option('--max-repos <number>', 'Maximum repositories to analyze', '100')
-  .option('--max-commits-per-repo <number>', 'Maximum commits per repository', '200')
+  .option('--max-repos <number>', 'Maximum repositories to analyze', String(defaultGitHubConfig.maxRepos))
+  .option('--max-commits-per-repo <number>', 'Maximum commits per repository', String(defaultGitHubConfig.maxCommitsPerRepo))
+  .option('--max-prs-per-repo <number>', 'Maximum PRs per repository', String(defaultGitHubConfig.maxPRsPerRepo))
   .option('--include-prs <boolean>', 'Analyze pull requests', 'true')
   .option('--include-stars <boolean>', 'Include starred repos for interest signals', 'true')
+  .option('--include-org-repos <boolean>', 'Include organization repositories', String(defaultGitHubConfig.includeOrgRepos))
   .option('--output <format>', 'Output format: text, json', 'text')
   .option('--resume', 'Resume from previous interrupted run', false)
   .option('--verbose', 'Show detailed progress', false)
@@ -94,11 +102,14 @@ program
 
 // [NOTE]: Parse string options to proper types
 function parseOptions(opts: Record<string, string | boolean>): CLIOptions {
+  const ghConfig = getGitHubConfig();
   return {
-    maxRepos: parseInt(opts.maxRepos as string, 10) || 100,
-    maxCommitsPerRepo: parseInt(opts.maxCommitsPerRepo as string, 10) || 200,
+    maxRepos: parseInt(opts.maxRepos as string, 10) || ghConfig.maxRepos,
+    maxCommitsPerRepo: parseInt(opts.maxCommitsPerRepo as string, 10) || ghConfig.maxCommitsPerRepo,
+    maxPRsPerRepo: parseInt(opts.maxPrsPerRepo as string, 10) || ghConfig.maxPRsPerRepo,
     includePrs: opts.includePrs === true || opts.includePrs === 'true',
     includeStars: opts.includeStars === true || opts.includeStars === 'true',
+    includeOrgRepos: opts.includeOrgRepos === true || opts.includeOrgRepos === 'true',
     output: (opts.output as 'text' | 'json') || 'text',
     resume: opts.resume === true,
     verbose: opts.verbose === true,
@@ -134,9 +145,10 @@ async function run(options: CLIOptions): Promise<void> {
   const scraper = new GitHubScraper(githubClient, cache, {
     maxRepos: options.maxRepos,
     maxCommitsPerRepo: options.maxCommitsPerRepo,
-    maxPRsPerRepo: 50,
+    maxPRsPerRepo: options.maxPRsPerRepo,
     includeStars: options.includeStars,
     includePRs: options.includePrs,
+    includeOrgRepos: options.includeOrgRepos,
     includeReadme: true,
     resume: options.resume,
     verbose: options.verbose,
@@ -165,17 +177,17 @@ async function run(options: CLIOptions): Promise<void> {
   const techCounts = extractAllTechnologies(githubData, skillNames);
   progress.succeed(`Found ${techCounts.size} unique technologies`);
 
-  // [NOTE]: Step 6 - Match technologies to Topcoder skills
+  // [NOTE]: Step 6 - Match technologies to Topcoder skills (no limit - match all)
   progress.start('Matching skills...');
   const skillMatcher = new SkillMatcher(skillsApi);
-  const matchedSkills = await skillMatcher.getTopMatches(techCounts, 30);
+  const matchedSkills = await skillMatcher.matchTechnologies(techCounts);
   progress.succeed(`Matched ${matchedSkills.length} skills`);
 
-  // [NOTE]: Step 7 - Score and rank skills
+  // [NOTE]: Step 7 - Score and rank skills (limit controlled by config.output settings)
   progress.start('Scoring skills...');
   const scoringEngine = new ScoringEngine();
   const scoredSkills = scoringEngine.scoreSkills(matchedSkills, githubData);
-  const topSkills = getTopScoredSkills(scoredSkills, 20);
+  const topSkills = getTopScoredSkills(scoredSkills); // [NOTE]: Uses config for limit
   progress.succeed(`Scored ${topSkills.length} skills`);
 
   // [NOTE]: Step 8 - Generate and print report

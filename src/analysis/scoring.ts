@@ -1,7 +1,7 @@
 import { CollectedGitHubData, TopcoderSkill, RepoData } from '../utils/cache';
 import { MatchedSkill } from '../topcoder/skill-matcher';
 import { Evidence, collectEvidence } from './evidence';
-import { loadSkillsConfig, getFileExtensions, getExplanationThresholds, areTermsAliases } from '../utils/config';
+import { loadSkillsConfig, getFileExtensions, getExplanationThresholds, areTermsAliases, getOutputConfig } from '../utils/config';
 import { isWholeWordMatch } from '../utils/string-utils';
 
 // [NOTE]: Helper to extract searchable terms from a repo
@@ -419,12 +419,26 @@ export class ScoringEngine {
 }
 
 // [NOTE]: Filter and sort skills by score, with minimum threshold from config
-export function getTopScoredSkills(skills: ScoredSkill[], limit: number = 20): ScoredSkill[] {
+// If limit is not provided, uses config.output settings (enableSkillLimit and maxSkillsToReport)
+export function getTopScoredSkills(skills: ScoredSkill[], limit?: number): ScoredSkill[] {
   const config = loadSkillsConfig();
+  const outputConfig = getOutputConfig();
   const minThreshold = config.scoring.minScoreThreshold;
 
-  return skills
+  const filtered = skills
     .filter(s => s.score >= minThreshold)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score);
+
+  // [NOTE]: If limit is explicitly provided, use it
+  // Otherwise, check if skill limit is enabled in config
+  if (limit !== undefined) {
+    return filtered.slice(0, limit);
+  }
+
+  if (outputConfig.enableSkillLimit) {
+    return filtered.slice(0, outputConfig.maxSkillsToReport);
+  }
+
+  // [NOTE]: Return all skills if limit is disabled
+  return filtered;
 }

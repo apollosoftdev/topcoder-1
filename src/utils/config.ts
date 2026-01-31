@@ -7,8 +7,33 @@ export interface SkillHierarchyEntry {
   weight?: number;        // Weight multiplier for implied skills (default: 0.7)
 }
 
+// [NOTE]: GitHub API configuration
+export interface GitHubConfig {
+  maxRepos: number;
+  maxCommitsPerRepo: number;
+  maxPRsPerRepo: number;
+  maxStars: number;
+  maxGists: number;
+  includeOrgRepos: boolean;
+  repoType: 'all' | 'owner' | 'public' | 'private' | 'member';
+}
+
+// [NOTE]: Output configuration
+export interface OutputConfig {
+  enableSkillLimit: boolean;
+  maxSkillsToReport: number;
+}
+
+// [NOTE]: Rate limit configuration
+export interface RateLimitConfig {
+  minRemaining: number;
+}
+
 // [NOTE]: Constants configuration loaded from config/constants.json
 export interface ConstantsConfig {
+  github: GitHubConfig;
+  output: OutputConfig;
+  rateLimit: RateLimitConfig;
   shortTermExpansions: Record<string, string>;
   languageAliases: Record<string, string[]>;
   skillHierarchy?: Record<string, SkillHierarchyEntry>;  // [NEW]: Skill hierarchy for transitive inference
@@ -204,5 +229,36 @@ export function getImpliedSkills(skillName: string): { skill: string; weight: nu
 export function getCategoryInferenceConfig(): { enabled: boolean; weight: number } {
   const config = loadSkillsConfig();
   return config.categoryInference || { enabled: true, weight: 0.5 };
+}
+
+// [NOTE]: Get GitHub configuration
+export function getGitHubConfig(): GitHubConfig {
+  const config = loadSkillsConfig();
+  return config.github || {
+    maxRepos: 500,
+    maxCommitsPerRepo: 200,
+    maxPRsPerRepo: 50,
+    maxStars: 100,
+    maxGists: 50,
+    includeOrgRepos: true,
+    repoType: 'all',
+  };
+}
+
+// [NOTE]: Get output configuration
+export function getOutputConfig(): OutputConfig {
+  const config = loadSkillsConfig();
+  return config.output || {
+    enableSkillLimit: false,
+    maxSkillsToReport: 50,
+  };
+}
+
+// [NOTE]: Get rate limit configuration
+export function getRateLimitConfig(): RateLimitConfig {
+  const config = loadSkillsConfig();
+  return config.rateLimit || {
+    minRemaining: 100,
+  };
 }
 

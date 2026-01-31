@@ -2,6 +2,25 @@
   "$schema": "./skills.schema.json",
   "description": "Skill matching configuration - edit without rebuilding the app",
 
+  "github": {
+    "maxRepos": 500,
+    "maxCommitsPerRepo": 200,
+    "maxPRsPerRepo": 50,
+    "maxStars": 100,
+    "maxGists": 50,
+    "includeOrgRepos": true,
+    "repoType": "all"
+  },
+
+  "output": {
+    "enableSkillLimit": false,
+    "maxSkillsToReport": 50
+  },
+
+  "rateLimit": {
+    "minRemaining": 100
+  },
+
   "shortTermExpansions": {
     "js": "JavaScript",
     "ts": "TypeScript",

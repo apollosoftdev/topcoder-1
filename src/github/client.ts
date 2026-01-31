@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { RateLimiter, RateLimitInfo } from '../utils/rate-limiter';
+import { getRateLimitConfig } from '../utils/config';
 import chalk from 'chalk';
 
 // GitHub API base URL - configurable via environment variable
@@ -45,7 +46,8 @@ export class GitHubClient {
 
   constructor(options: GitHubClientOptions) {
     this.verbose = options.verbose ?? false;
-    this.rateLimiter = new RateLimiter({ minRemaining: 100, verbose: this.verbose });
+    const rateLimitConfig = getRateLimitConfig();
+    this.rateLimiter = new RateLimiter({ minRemaining: rateLimitConfig.minRemaining, verbose: this.verbose });
 
     this.octokit = new Octokit({
       auth: options.token,
@@ -116,6 +118,32 @@ export class GitHubClient {
       return data.map((org: { login: string }) => org.login);
     } catch {
       return [];
+    }
+  }
+
+  // [NOTE]: Fetch repositories for a specific organization
+  async *paginateOrgRepos(
+    org: string,
+    options: { maxRepos?: number }
+  ): AsyncGenerator<Awaited<ReturnType<typeof this.octokit.repos.listForOrg>>['data'][0]> {
+    const { maxRepos = 100 } = options;
+    let count = 0;
+
+    try {
+      for await (const response of this.octokit.paginate.iterator(
+        this.octokit.repos.listForOrg,
+        { org, type: 'all', per_page: Math.min(100, maxRepos), sort: 'updated', direction: 'desc' }
+      )) {
+        for (const repo of response.data) {
+          if (count >= maxRepos) return;
+          yield repo;
+          count++;
+        }
+      }
+    } catch {
+      if (this.verbose) {
+        console.log(chalk.gray(`  Could not fetch repos for org: ${org}`));
+      }
     }
   }
 
